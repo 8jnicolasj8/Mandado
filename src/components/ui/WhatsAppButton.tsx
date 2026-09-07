@@ -1,0 +1,380 @@
+'use client';
+
+import React, { useState, useMemo, useEffect } from 'react';
+import {
+  Share2,
+  X,
+  Send,
+  MessageSquare,
+  ChevronRight,
+  Store as StoreIcon,
+  CheckSquare,
+  Square,
+  Sparkles,
+  Copy,
+  Check,
+} from 'lucide-react';
+import { useApp } from '@/lib/context/AppContext';
+import {
+  generateWhatsAppShoppingListText,
+  createWhatsAppUrl,
+  getCategoryEmoji,
+} from '@/lib/utils/whatsapp';
+
+interface WhatsAppSendModalProps {
+  isOpen: boolean;
+  onClose: () => void;
+  listName?: string;
+  initialSelectedStoreId?: string | null;
+}
+
+export const WhatsAppSendModal: React.FC<WhatsAppSendModalProps> = ({
+  isOpen,
+  onClose,
+  listName,
+  initialSelectedStoreId,
+}) => {
+  const { listItems, currentList, familyMembers, currentProfile, stores } = useApp();
+  const [showPreview, setShowPreview] = useState(false);
+  const [copied, setCopied] = useState(false);
+
+  // Active (uncompleted) items
+  const activeItems = useMemo(() => listItems.filter((item) => !item.checked), [listItems]);
+
+  // Unique stores present in active items
+  const storesInList = useMemo(() => {
+    const map = new Map<string, { id: string; name: string; category: string; count: number }>();
+
+    activeItems.forEach((item) => {
+      const storeId = item.store?.id || 'sin-tienda';
+      const storeName = item.store?.name || 'Otras tiendas';
+      const category = item.store?.category || 'otro';
+
+      if (!map.has(storeId)) {
+        map.set(storeId, { id: storeId, name: storeName, category, count: 0 });
+      }
+      map.get(storeId)!.count += 1;
+    });
+
+    return Array.from(map.values());
+  }, [activeItems]);
+
+  // Selected store IDs for export (multi-select)
+  const [selectedStoreIds, setSelectedStoreIds] = useState<string[]>([]);
+
+  useEffect(() => {
+    if (isOpen) {
+      if (initialSelectedStoreId) {
+        setSelectedStoreIds([initialSelectedStoreId]);
+      } else {
+        // Default: select all stores
+        setSelectedStoreIds(storesInList.map((s) => s.id));
+      }
+    }
+  }, [isOpen, initialSelectedStoreId, storesInList]);
+
+  if (!isOpen || activeItems.length === 0) {
+    return null;
+  }
+
+  const toggleStore = (storeId: string) => {
+    setSelectedStoreIds((prev) =>
+      prev.includes(storeId) ? prev.filter((id) => id !== storeId) : [...prev, storeId]
+    );
+  };
+
+  const handleSelectAllStores = () => {
+    setSelectedStoreIds(storesInList.map((s) => s.id));
+  };
+
+  const handleClearStores = () => {
+    setSelectedStoreIds([]);
+  };
+
+  // Compute effective list name (e.g. if only 1 store is selected, use that store name)
+  const effectiveListName = useMemo(() => {
+    if (selectedStoreIds.length === 1) {
+      const singleStore = storesInList.find((s) => s.id === selectedStoreIds[0]);
+      if (singleStore) {
+        return `Lista: ${singleStore.name}`;
+      }
+    }
+    return listName || currentList?.name || 'Mandado';
+  }, [selectedStoreIds, storesInList, listName, currentList?.name]);
+
+  // Generate customized text for the chosen stores
+  const generatedText = generateWhatsAppShoppingListText({
+    listName: effectiveListName,
+    items: activeItems,
+    includeChecked: false,
+    selectedStoreIds,
+  });
+
+  const selectedItemCount = activeItems.filter((item) =>
+    selectedStoreIds.includes(item.store?.id || 'sin-tienda')
+  ).length;
+
+  const handleSendToMember = (phone?: string | null) => {
+    if (selectedStoreIds.length === 0) return;
+    const url = createWhatsAppUrl(generatedText, phone);
+    window.open(url, '_blank', 'noopener,noreferrer');
+    onClose();
+  };
+
+  const handleSendGeneral = () => {
+    if (selectedStoreIds.length === 0) return;
+    const url = createWhatsAppUrl(generatedText);
+    window.open(url, '_blank', 'noopener,noreferrer');
+    onClose();
+  };
+
+  const handleCopyText = async () => {
+    if (selectedStoreIds.length === 0) return;
+    try {
+      await navigator.clipboard.writeText(generatedText);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2500);
+    } catch (err) {
+      console.error('Failed to copy', err);
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-end sm:items-center justify-center p-4 animate-in fade-in duration-200">
+      <div className="bg-white w-full max-w-sm rounded-3xl p-5 shadow-2xl border border-gray-200 relative animate-in slide-in-from-bottom-4 duration-200 max-h-[92vh] flex flex-col">
+        {/* Header */}
+        <div className="flex items-center justify-between pb-3 border-b border-gray-100 shrink-0">
+          <div className="flex items-center gap-2.5">
+            <div className="w-9 h-9 rounded-2xl bg-[#25D366] text-white flex items-center justify-center shadow-xs">
+              <MessageSquare className="w-5 h-5" />
+            </div>
+            <div>
+              <h3 className="text-sm font-bold text-gray-900">Pasar el Mandado</h3>
+              <p className="text-[11px] text-gray-500">
+                {selectedItemCount} items seleccionados
+              </p>
+            </div>
+          </div>
+          <button
+            onClick={onClose}
+            className="p-1 rounded-full text-gray-400 hover:text-gray-600 hover:bg-gray-100"
+          >
+            <X className="w-5 h-5" />
+          </button>
+        </div>
+
+        <div className="mt-3 space-y-3.5 overflow-y-auto pr-1">
+          {/* Section 1: Filter by Store (Parts of Mandado) */}
+          <div className="bg-gray-50/80 p-3 rounded-2xl border border-gray-200/70">
+            <div className="flex items-center justify-between mb-2">
+              <span className="text-xs font-bold text-gray-800 flex items-center gap-1.5">
+                <StoreIcon className="w-3.5 h-3.5 text-emerald-600" />
+                1. ¿Qué comercios le tocan?
+              </span>
+
+              <div className="flex items-center gap-1.5 text-[10px] font-semibold">
+                <button
+                  type="button"
+                  onClick={handleSelectAllStores}
+                  className="text-emerald-700 hover:underline"
+                >
+                  Todos
+                </button>
+                <span className="text-gray-300">•</span>
+                <button
+                  type="button"
+                  onClick={handleClearStores}
+                  className="text-gray-500 hover:underline"
+                >
+                  Limpiar
+                </button>
+              </div>
+            </div>
+
+            <div className="space-y-1.5">
+              {storesInList.map((store) => {
+                const isSelected = selectedStoreIds.includes(store.id);
+                const emoji = getCategoryEmoji(store.category);
+
+                return (
+                  <button
+                    key={store.id}
+                    type="button"
+                    onClick={() => toggleStore(store.id)}
+                    className={`w-full px-2.5 py-1.5 rounded-xl border text-left flex items-center justify-between text-xs transition-all ${
+                      isSelected
+                        ? 'bg-white border-emerald-500 shadow-2xs font-semibold text-gray-900'
+                        : 'bg-white/50 border-gray-200/80 text-gray-500 hover:bg-white'
+                    }`}
+                  >
+                    <div className="flex items-center gap-2 min-w-0">
+                      <span className="text-sm">{emoji}</span>
+                      <span className="truncate">{store.name}</span>
+                    </div>
+
+                    <div className="flex items-center gap-1.5 shrink-0">
+                      <span className="text-[10px] font-mono px-1.5 py-0.2 rounded-md bg-gray-100 text-gray-600">
+                        {store.count} {store.count === 1 ? 'item' : 'items'}
+                      </span>
+                      {isSelected ? (
+                        <CheckSquare className="w-4 h-4 text-emerald-600" />
+                      ) : (
+                        <Square className="w-4 h-4 text-gray-300" />
+                      )}
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* Section 2: Choose Recipient */}
+          <div>
+            <p className="text-xs font-bold text-gray-800 mb-2">
+              2. ¿A quién se lo pasas por WhatsApp?
+            </p>
+
+            <div className="space-y-1.5 max-h-48 overflow-y-auto">
+              {familyMembers.map((member) => {
+                const isMe = member.id === currentProfile.id;
+                const hasPhone = Boolean(member.phone);
+
+                return (
+                  <button
+                    key={member.id}
+                    onClick={() => handleSendToMember(member.phone)}
+                    disabled={!hasPhone || selectedStoreIds.length === 0}
+                    className={`w-full p-2.5 rounded-2xl border text-left flex items-center justify-between transition-all ${
+                      hasPhone && selectedStoreIds.length > 0
+                        ? 'bg-gray-50/80 hover:bg-emerald-50/70 border-gray-200/90 hover:border-emerald-300 active:scale-[0.99]'
+                        : 'bg-gray-50/40 border-gray-100 opacity-50 cursor-not-allowed'
+                    }`}
+                  >
+                    <div className="flex items-center gap-2.5 min-w-0">
+                      <div
+                        className="w-8 h-8 rounded-xl flex items-center justify-center text-white text-xs font-bold shrink-0 shadow-2xs"
+                        style={{ backgroundColor: member.avatar_color || '#16A34A' }}
+                      >
+                        {member.display_name.charAt(0).toUpperCase()}
+                      </div>
+                      <div className="truncate">
+                        <div className="flex items-center gap-1.5">
+                          <span className="text-xs font-bold text-gray-900 truncate">
+                            {member.display_name}
+                          </span>
+                          {isMe && (
+                            <span className="text-[10px] text-gray-400 font-normal">
+                              (Tú)
+                            </span>
+                          )}
+                        </div>
+                        <span className="text-[11px] text-gray-500 font-mono block truncate">
+                          {member.phone || 'Sin celular registrado'}
+                        </span>
+                      </div>
+                    </div>
+
+                    {hasPhone && (
+                      <div className="flex items-center gap-1 text-[#25D366] font-bold text-xs shrink-0 pl-2">
+                        <span>Enviar</span>
+                        <ChevronRight className="w-4 h-4" />
+                      </div>
+                    )}
+                  </button>
+                );
+              })}
+            </div>
+
+            {/* General WhatsApp Share Option & Copy Button */}
+            <div className="pt-2 flex flex-col gap-2">
+              <button
+                onClick={handleSendGeneral}
+                disabled={selectedStoreIds.length === 0}
+                className="w-full py-2.5 px-3 bg-[#25D366] hover:bg-[#20bd5a] disabled:opacity-40 disabled:pointer-events-none active:scale-[0.98] text-white text-xs font-bold rounded-xl shadow-xs flex items-center justify-center gap-2 transition-all"
+              >
+                <Share2 className="w-4 h-4" />
+                Elegir otro chat o grupo de WhatsApp
+              </button>
+
+              <button
+                type="button"
+                onClick={handleCopyText}
+                disabled={selectedStoreIds.length === 0}
+                className="w-full py-2 px-3 bg-gray-100 hover:bg-gray-200 text-gray-700 active:scale-[0.98] text-xs font-semibold rounded-xl flex items-center justify-center gap-2 transition-all border border-gray-200"
+              >
+                {copied ? (
+                  <>
+                    <Check className="w-3.5 h-3.5 text-emerald-600" />
+                    <span className="text-emerald-700 font-bold">¡Texto copiado al portapapeles!</span>
+                  </>
+                ) : (
+                  <>
+                    <Copy className="w-3.5 h-3.5 text-gray-500" />
+                    <span>Copiar texto de la lista</span>
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
+
+          {/* Preview Toggle */}
+          <div className="pt-1 text-center">
+            <button
+              type="button"
+              onClick={() => setShowPreview(!showPreview)}
+              className="text-[11px] text-gray-500 hover:text-emerald-700 underline font-medium"
+            >
+              {showPreview ? 'Ocultar vista previa' : 'Ver mensaje que se enviará'}
+            </button>
+
+            {showPreview && (
+              <pre className="mt-2 text-left bg-gray-50 p-2.5 rounded-xl border border-gray-200 text-[11px] text-gray-700 font-mono whitespace-pre-wrap max-h-36 overflow-y-auto leading-relaxed">
+                {generatedText}
+              </pre>
+            )}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+export const WhatsAppButton: React.FC<{ listName?: string }> = ({ listName }) => {
+  const { listItems } = useApp();
+  const [isOpen, setIsOpen] = useState(false);
+
+  const activeItems = listItems.filter((item) => !item.checked);
+
+  if (activeItems.length === 0) {
+    return null;
+  }
+
+  return (
+    <>
+      <button
+        onClick={() => setIsOpen(true)}
+        className="fixed bottom-20 right-4 z-30 flex items-center gap-2 bg-[#25D366] hover:bg-[#20bd5a] text-white px-4 py-3 rounded-full shadow-lg hover:shadow-xl active:scale-95 transition-all duration-200 border-2 border-white/50"
+        title="Enviar mandado por WhatsApp"
+        aria-label="Compartir en WhatsApp"
+      >
+        <div className="relative">
+          <Share2 className="w-5 h-5 stroke-[2.5]" />
+          <span className="absolute -top-1 -right-1 flex h-2.5 w-2.5">
+            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-white opacity-75"></span>
+            <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-white"></span>
+          </span>
+        </div>
+        <span className="font-bold text-xs tracking-wide">WhatsApp</span>
+        <span className="bg-white/20 text-white font-mono text-[11px] px-1.5 py-0.5 rounded-full font-bold">
+          {activeItems.length}
+        </span>
+      </button>
+
+      <WhatsAppSendModal
+        isOpen={isOpen}
+        onClose={() => setIsOpen(false)}
+        listName={listName}
+      />
+    </>
+  );
+};
