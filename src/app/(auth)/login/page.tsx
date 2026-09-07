@@ -45,12 +45,7 @@ export default function LoginPage() {
     }
   };
 
-  const handleDemoAccess = () => {
-    setLoading(true);
-    setTimeout(() => {
-      router.push('/');
-    }, 300);
-  };
+
 
   return (
     <div className="min-h-screen px-4 py-8 flex flex-col justify-center max-w-sm mx-auto">
@@ -124,17 +119,7 @@ export default function LoginPage() {
           </button>
         </form>
 
-        {/* Demo Fast Access Button */}
-        <div className="pt-2 border-t border-gray-100">
-          <button
-            type="button"
-            onClick={handleDemoAccess}
-            className="w-full py-2 px-3 bg-amber-50 hover:bg-amber-100 active:scale-[0.98] text-amber-900 border border-amber-200/80 rounded-xl text-xs font-semibold flex items-center justify-center gap-1.5 transition-colors"
-          >
-            <Sparkles className="w-3.5 h-3.5 text-amber-600" />
-            Ingresar como Demo Familiar
-          </button>
-        </div>
+
       </div>
 
       {/* Link to Register */}

@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState } from 'react';
+import Link from 'next/link';
 import {
   User,
   Users,
@@ -36,10 +37,10 @@ export default function PerfilPage() {
   const [phoneInput, setPhoneInput] = useState(currentProfile.phone || '');
   const [phoneSaved, setPhoneSaved] = useState(false);
 
-  // Invite code is based on family.id (first 8 chars uppercase) or fixed demo code
+  // Invite code is based on family.id (first 8 chars uppercase) or fixed code
   const familyInviteCode = family?.id
     ? `MANDADO-${family.id.slice(0, 8).toUpperCase()}`
-    : 'MANDADO-DEMO';
+    : 'MANDADO-PINTO';
 
   const handleCopyCode = async () => {
     try {
@@ -72,8 +73,8 @@ export default function PerfilPage() {
     window.open(url, '_blank');
   };
 
-  const handleResetDemo = () => {
-    if (confirm('¿Restablecer datos de prueba a los valores originales (General Pinto)?')) {
+  const handleResetCatalog = () => {
+    if (confirm('¿Restablecer comercios de General Pinto a valores originales?')) {
       localStorage.removeItem('mandado_stores');
       localStorage.removeItem('mandado_products');
       localStorage.removeItem('mandado_price_history');
@@ -190,14 +191,7 @@ export default function PerfilPage() {
           </p>
         </div>
 
-        {isDemoMode && (
-          <div className="p-3 bg-amber-50/80 border border-amber-200/80 rounded-2xl flex items-start gap-2.5">
-            <Sparkles className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
-            <div className="text-[11px] text-amber-900 leading-relaxed">
-              <span className="font-bold">Modo Demo Local activo:</span> Los cambios se guardan en este dispositivo con comercios de General Pinto. Conecta tu proyecto Supabase para sincronización en tiempo real entre celulares.
-            </div>
-          </div>
-        )}
+
       </div>
 
       {/* Family Invitation Code Card */}
@@ -313,28 +307,28 @@ export default function PerfilPage() {
 
         <div className="space-y-2 text-xs">
           <button
-            onClick={handleResetDemo}
+            onClick={handleResetCatalog}
             className="w-full p-3 rounded-2xl bg-gray-50 hover:bg-gray-100 text-gray-700 font-semibold flex items-center justify-between transition-colors"
           >
             <div className="flex items-center gap-2.5">
               <RefreshCw className="w-4 h-4 text-gray-500" />
-              <span>Restablecer tiendas y datos de prueba</span>
+              <span>Restablecer comercios locales</span>
             </div>
             {resetSuccess && (
               <span className="text-[10px] text-emerald-600 font-bold">¡Restablecido!</span>
             )}
           </button>
 
-          <a
-            href="/(auth)/login"
+          <Link
+            href="/login"
             className="w-full p-3 rounded-2xl bg-gray-50 hover:bg-red-50 text-gray-700 hover:text-red-700 font-semibold flex items-center justify-between transition-colors"
           >
             <div className="flex items-center gap-2.5">
               <LogOut className="w-4 h-4 text-gray-500 hover:text-red-600" />
-              <span>Cerrar sesión</span>
+              <span>Cerrar sesión / Iniciar con otra cuenta</span>
             </div>
             <ExternalLink className="w-3.5 h-3.5 opacity-50" />
-          </a>
+          </Link>
         </div>
       </div>
     </div>

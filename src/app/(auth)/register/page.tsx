@@ -97,7 +97,7 @@ export default function RegisterPage() {
       try {
         const newProfile = {
           id: `user-${Date.now()}`,
-          family_id: 'fam-demo-001',
+          family_id: 'fam-default-001',
           display_name: displayName,
           avatar_color: avatarColor,
           phone: phone.trim(),
@@ -293,7 +293,7 @@ export default function RegisterPage() {
                   <input
                     type="text"
                     required={familyMode === 'join'}
-                    placeholder="Ej: MANDADO-DEMO"
+                    placeholder="Ej: MANDADO-PINTO"
                     value={familyCode}
                     onChange={(e) => setFamilyCode(e.target.value.toUpperCase())}
                     className="w-full pl-9 pr-3 py-2 text-xs bg-gray-50 border border-gray-200 rounded-xl uppercase font-mono tracking-wider focus:outline-hidden focus:ring-2 focus:ring-emerald-500 focus:bg-white transition-all"

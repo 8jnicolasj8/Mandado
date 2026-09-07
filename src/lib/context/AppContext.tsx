@@ -12,14 +12,14 @@ import {
   StoreCategory,
 } from '../types/database';
 import {
-  DEMO_FAMILY,
-  DEMO_PROFILES,
-  DEMO_STORES,
-  DEMO_PRODUCTS,
-  DEMO_PRICE_HISTORY,
-  DEMO_LISTS,
-  DEMO_LIST_ITEMS,
-} from '../demo-data';
+  DEFAULT_FAMILY,
+  DEFAULT_PROFILES,
+  DEFAULT_STORES,
+  DEFAULT_PRODUCTS,
+  DEFAULT_PRICE_HISTORY,
+  DEFAULT_LISTS,
+  DEFAULT_LIST_ITEMS,
+} from '../initial-data';
 import { isSupabaseConfigured, createClient } from '../supabase/client';
 import { getPriceStatus } from '../utils/prices';
 import { formatListName } from '../utils/whatsapp';
@@ -60,19 +60,25 @@ interface AppContextType {
 const AppContext = createContext<AppContextType | undefined>(undefined);
 
 export const AppProvider = ({ children }: { children: React.ReactNode }) => {
-  const [isDemo, setIsDemo] = useState<boolean>(true);
+  const [isDemo, setIsDemo] = useState<boolean>(false);
   const [isLoading, setIsLoading] = useState<boolean>(false);
 
   // Core state
-  const [family, setFamily] = useState<Family>(DEMO_FAMILY);
-  const [currentProfile, setCurrentProfile] = useState<Profile>({ id: 'demo-anon', family_id: DEMO_FAMILY.id, display_name: 'Demo User', avatar_color: '#CCCCCC', created_at: new Date().toISOString() });
+  const [family, setFamily] = useState<Family>(DEFAULT_FAMILY);
+  const [currentProfile, setCurrentProfile] = useState<Profile>({
+    id: 'user-main',
+    family_id: DEFAULT_FAMILY.id,
+    display_name: 'Mi Usuario',
+    avatar_color: '#16A34A',
+    created_at: new Date().toISOString()
+  });
   const [familyMembers, setFamilyMembers] = useState<Profile[]>([]);
-  const [stores, setStores] = useState<Store[]>(DEMO_STORES);
-  const [products, setProducts] = useState<Product[]>(DEMO_PRODUCTS);
-  const [priceHistory, setPriceHistory] = useState<PriceHistory[]>(DEMO_PRICE_HISTORY);
-  const [lists, setLists] = useState<ShoppingList[]>(DEMO_LISTS);
-  const [currentListId, setCurrentListId] = useState<string>(DEMO_LISTS[0].id);
-  const [rawItems, setRawItems] = useState(DEMO_LIST_ITEMS);
+  const [stores, setStores] = useState<Store[]>(DEFAULT_STORES);
+  const [products, setProducts] = useState<Product[]>(DEFAULT_PRODUCTS);
+  const [priceHistory, setPriceHistory] = useState<PriceHistory[]>(DEFAULT_PRICE_HISTORY);
+  const [lists, setLists] = useState<ShoppingList[]>(DEFAULT_LISTS);
+  const [currentListId, setCurrentListId] = useState<string>(DEFAULT_LISTS[0].id);
+  const [rawItems, setRawItems] = useState(DEFAULT_LIST_ITEMS);
 
   // Load from localStorage or Supabase on mount
   useEffect(() => {
@@ -81,50 +87,50 @@ export const AppProvider = ({ children }: { children: React.ReactNode }) => {
     const hasSupabase = isSupabaseConfigured();
     setIsDemo(!hasSupabase);
 
-    if (!hasSupabase) {
-      try {
-        // Version check to migrate to real General Pinto stores, phones, and standardized Lista: names
-        const currentV = localStorage.getItem('mandado_version');
-        if (currentV !== '2.3') {
-          localStorage.removeItem('mandado_stores');
-          localStorage.removeItem('mandado_products');
-          localStorage.removeItem('mandado_price_history');
-          localStorage.removeItem('mandado_raw_items');
-          localStorage.removeItem('mandado_lists');
-          localStorage.setItem('mandado_version', '2.3');
-        }
-
-        const savedStores = localStorage.getItem('mandado_stores');
-        if (savedStores) setStores(JSON.parse(savedStores));
-
-        const savedProducts = localStorage.getItem('mandado_products');
-        if (savedProducts) setProducts(JSON.parse(savedProducts));
-
-        const savedPrices = localStorage.getItem('mandado_price_history');
-        if (savedPrices) setPriceHistory(JSON.parse(savedPrices));
-
-        const savedLists = localStorage.getItem('mandado_lists');
-        if (savedLists) {
-          const parsed = JSON.parse(savedLists);
-          setLists(parsed.map((l: ShoppingList) => ({ ...l, name: formatListName(l.name) })));
-        }
-
-        const savedItems = localStorage.getItem('mandado_raw_items');
-        if (savedItems) setRawItems(JSON.parse(savedItems));
-
-        const savedProfile = localStorage.getItem('mandado_profile');
-        if (savedProfile) setCurrentProfile(JSON.parse(savedProfile));
-
-        const savedMembers = localStorage.getItem('mandado_family_members');
-        if (savedMembers) setFamilyMembers(JSON.parse(savedMembers));
-      } catch (e) {
-        console.error('Error loading stored demo data', e);
+    try {
+      // Version check to clean up old demo data and accounts
+      const currentV = localStorage.getItem('mandado_version');
+      if (currentV !== '3.0') {
+        localStorage.removeItem('mandado_stores');
+        localStorage.removeItem('mandado_products');
+        localStorage.removeItem('mandado_price_history');
+        localStorage.removeItem('mandado_raw_items');
+        localStorage.removeItem('mandado_lists');
+        localStorage.removeItem('mandado_profile');
+        localStorage.removeItem('mandado_family_members');
+        localStorage.setItem('mandado_version', '3.0');
       }
+
+      const savedStores = localStorage.getItem('mandado_stores');
+      if (savedStores) setStores(JSON.parse(savedStores));
+
+      const savedProducts = localStorage.getItem('mandado_products');
+      if (savedProducts) setProducts(JSON.parse(savedProducts));
+
+      const savedPrices = localStorage.getItem('mandado_price_history');
+      if (savedPrices) setPriceHistory(JSON.parse(savedPrices));
+
+      const savedLists = localStorage.getItem('mandado_lists');
+      if (savedLists) {
+        const parsed = JSON.parse(savedLists);
+        setLists(parsed.map((l: ShoppingList) => ({ ...l, name: formatListName(l.name) })));
+      }
+
+      const savedItems = localStorage.getItem('mandado_raw_items');
+      if (savedItems) setRawItems(JSON.parse(savedItems));
+
+      const savedProfile = localStorage.getItem('mandado_profile');
+      if (savedProfile) setCurrentProfile(JSON.parse(savedProfile));
+
+      const savedMembers = localStorage.getItem('mandado_family_members');
+      if (savedMembers) setFamilyMembers(JSON.parse(savedMembers));
+    } catch (e) {
+      console.error('Error loading stored data', e);
     }
   }, []);
 
-  // Save to localStorage when in demo mode
-  const persistDemoData = useCallback(() => {
+  // Save to localStorage for offline persistence
+  const persistData = useCallback(() => {
     if (typeof window === 'undefined') return;
     try {
       localStorage.setItem('mandado_stores', JSON.stringify(stores));
@@ -135,15 +141,13 @@ export const AppProvider = ({ children }: { children: React.ReactNode }) => {
       localStorage.setItem('mandado_profile', JSON.stringify(currentProfile));
       localStorage.setItem('mandado_family_members', JSON.stringify(familyMembers));
     } catch (e) {
-      console.error('Error saving demo data', e);
+      console.error('Error saving data', e);
     }
   }, [stores, products, priceHistory, lists, rawItems, currentProfile, familyMembers]);
 
   useEffect(() => {
-    if (isDemo) {
-      persistDemoData();
-    }
-  }, [isDemo, persistDemoData]);
+    persistData();
+  }, [persistData]);
 
   // Helper to fetch latest price of a product at a given store
   const getLatestPriceForStore = useCallback(
