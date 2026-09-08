@@ -18,9 +18,6 @@ import {
 import { useApp } from '@/lib/context/AppContext';
 import {
   generateWhatsAppShoppingListText,
-  createWhatsAppUrl,
-  createWhatsAppDeepLink,
-  createWhatsAppWebUrl,
   getCategoryEmoji,
 } from '@/lib/utils/whatsapp';
 
@@ -40,6 +37,7 @@ export const WhatsAppSendModal: React.FC<WhatsAppSendModalProps> = ({
   const { listItems, currentList, familyMembers, currentProfile, stores } = useApp();
   const [showPreview, setShowPreview] = useState(false);
   const [copied, setCopied] = useState(false);
+  const [toastMessage, setToastMessage] = useState<string | null>(null);
   const [customPhone, setCustomPhone] = useState('');
   const [recentPhones, setRecentPhones] = useState<string[]>([]);
 
@@ -163,7 +161,39 @@ export const WhatsAppSendModal: React.FC<WhatsAppSendModalProps> = ({
     effectiveStoreIds.includes(item.store?.id || 'sin-tienda')
   ).length;
 
-  const handleSendToPhone = (phone?: string | null) => {
+  const showToast = (msg: string) => {
+    setToastMessage(msg);
+    setTimeout(() => setToastMessage(null), 3000);
+  };
+
+  const shareOrCopyText = async (text: string, title?: string): Promise<'shared' | 'copied' | 'failed'> => {
+    // 1. Si navigator.share está disponible (mobile/PWA), usar la hoja nativa de compartir
+    if (typeof navigator !== 'undefined' && navigator.share) {
+      try {
+        await navigator.share({ title, text });
+        return 'shared';
+      } catch (err: unknown) {
+        // Si el usuario cancela el diálogo, no hacer nada
+        if (err && typeof err === 'object' && 'name' in err && err.name === 'AbortError') return 'failed';
+        // Fallback en caso de otro fallo: copiar al portapapeles
+      }
+    }
+
+    // 2. Fallback: copiar al portapapeles con aviso
+    if (typeof navigator !== 'undefined' && navigator.clipboard) {
+      try {
+        await navigator.clipboard.writeText(text);
+        showToast('Lista copiada. Pegala en WhatsApp 📋');
+        return 'copied';
+      } catch (err) {
+        console.error('Failed to copy to clipboard', err);
+      }
+    }
+
+    return 'failed';
+  };
+
+  const handleSendToPhone = async (phone?: string | null) => {
     if (!phone || !phone.trim()) return;
 
     // Save to recent
@@ -176,35 +206,13 @@ export const WhatsAppSendModal: React.FC<WhatsAppSendModalProps> = ({
       return next;
     });
 
-    const isMobile = typeof navigator !== 'undefined' && /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
-    if (isMobile) {
-      window.location.href = createWhatsAppDeepLink(generatedText, phone);
-    } else {
-      window.open(createWhatsAppWebUrl(generatedText, phone), '_blank', 'noopener,noreferrer');
-    }
-    onClose();
+    const result = await shareOrCopyText(generatedText, effectiveListName);
+    if (result === 'shared') onClose();
   };
 
   const handleSendGeneral = async () => {
-    const isMobile = typeof navigator !== 'undefined' && /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
-
-    if (typeof navigator !== 'undefined' && navigator.share) {
-      try {
-        await navigator.share({
-          title: effectiveListName,
-          text: generatedText,
-        });
-        onClose();
-        return;
-      } catch (_) {}
-    }
-
-    if (isMobile) {
-      window.location.href = createWhatsAppDeepLink(generatedText);
-    } else {
-      window.open(createWhatsAppWebUrl(generatedText), '_blank', 'noopener,noreferrer');
-    }
-    onClose();
+    const result = await shareOrCopyText(generatedText, effectiveListName);
+    if (result === 'shared') onClose();
   };
 
   const handleCopyText = async () => {
@@ -459,6 +467,15 @@ export const WhatsAppSendModal: React.FC<WhatsAppSendModalProps> = ({
           </div>
         </div>
       </div>
+
+      {/* Toast / Snackbar */}
+      {toastMessage && (
+        <div className="fixed bottom-36 right-4 z-[60] animate-in fade-in slide-in-from-bottom-2 duration-200 pointer-events-none">
+          <div className="bg-gray-900/95 text-white px-4 py-3 rounded-2xl shadow-2xl flex items-center gap-2.5 text-xs font-semibold backdrop-blur-xs border border-white/10">
+            <span>{toastMessage}</span>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

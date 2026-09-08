@@ -6,144 +6,125 @@ import { useRouter } from 'next/navigation';
 import {
   ShoppingBag,
   User,
-  Mail,
   Lock,
-  Users,
   KeyRound,
   ArrowRight,
-  Sparkles,
   AlertCircle,
-  Palette,
-  Phone,
+  Sparkles,
 } from 'lucide-react';
 import { createClient, isSupabaseConfigured } from '@/lib/supabase/client';
 import { generateFamilyInviteCode } from '@/lib/utils/family';
-
-const AVATAR_COLORS = [
-  '#16A34A', // Emerald green
-  '#2563EB', // Blue
-  '#9333EA', // Purple
-  '#DB2777', // Pink
-  '#EA580C', // Orange
-  '#0D9488', // Teal
-];
+import { getInternalAuthEmail } from '@/lib/utils/auth';
 
 export default function RegisterPage() {
   const router = useRouter();
 
-  const [displayName, setDisplayName] = useState('');
-  const [phone, setPhone] = useState('');
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
-  const [avatarColor, setAvatarColor] = useState(AVATAR_COLORS[0]);
-
-  // Family Mode: 'create' or 'join'
-  const [familyMode, setFamilyMode] = useState<'create' | 'join'>('create');
-  const [familyName, setFamilyName] = useState('');
   const [familyCode, setFamilyCode] = useState('');
+  const [username, setUsername] = useState('');
+  const [password, setPassword] = useState('');
 
   const [loading, setLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
+
+  const handleGenerateCode = () => {
+    const newCode = generateFamilyInviteCode();
+    setFamilyCode(newCode);
+  };
 
   const handleRegister = async (e: React.FormEvent) => {
     e.preventDefault();
     setErrorMsg(null);
 
-    if (familyMode === 'create' && !familyName.trim()) {
-      setErrorMsg('Por favor ingresa un nombre para tu familia');
-      return;
-    }
-    if (familyMode === 'join' && !familyCode.trim()) {
-      setErrorMsg('Por favor ingresa el código de tu familia');
-      return;
-    }
-    if (!phone.trim()) {
-      setErrorMsg('Por favor ingresa tu número de celular / WhatsApp');
+    const cleanFam = familyCode.trim().toUpperCase();
+    const cleanUser = username.trim();
+
+    if (!cleanFam || !cleanUser || !password) {
+      setErrorMsg('Por favor completa todos los campos');
       return;
     }
 
-    const finalFamilyCode =
-      familyMode === 'create'
-        ? generateFamilyInviteCode()
-        : familyCode.trim().toUpperCase();
+    if (cleanUser.length < 2) {
+      setErrorMsg('El nombre de usuario debe tener al menos 2 caracteres');
+      return;
+    }
+
+    if (cleanFam.length < 3) {
+      setErrorMsg('El código de familia debe tener al menos 3 caracteres');
+      return;
+    }
+
+    if (password.length < 6) {
+      setErrorMsg('La contraseña debe tener al menos 6 caracteres');
+      return;
+    }
 
     setLoading(true);
 
     if (isSupabaseConfigured()) {
       try {
-        const supabase = createClient();
-        const { data, error } = await supabase.auth.signUp({
-          email,
-          password,
-          options: {
-            data: {
-              display_name: displayName.trim(),
-              avatar_color: avatarColor,
-              phone: phone.trim(),
-              family_mode: familyMode,
-              family_name: familyMode === 'create' ? familyName.trim() : null,
-              family_code: finalFamilyCode,
-            },
-          },
+        // 1. Call server API to create user with pre-confirmed email (no confirmation email needed)
+        const res = await fetch('/api/auth/register', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            username: cleanUser,
+            familyCode: cleanFam,
+            password,
+          }),
         });
 
-        if (error) {
-          setErrorMsg(error.message);
+        const result = await res.json();
+        if (!res.ok) {
+          setErrorMsg(result.error || 'Error al crear la cuenta');
           setLoading(false);
+          return;
+        }
+
+        // 2. Sign in with the client SDK to establish the browser session
+        const internalEmail = getInternalAuthEmail(cleanUser, cleanFam);
+        const supabase = createClient();
+        const { data, error: signInErr } = await supabase.auth.signInWithPassword({
+          email: internalEmail,
+          password,
+        });
+
+        if (signInErr) {
+          setErrorMsg('Cuenta creada. Inicia sesión con tus credenciales.');
+          setTimeout(() => {
+            window.location.href = '/login';
+          }, 1200);
           return;
         }
 
         const profile = {
           id: data.user?.id || `user-${Date.now()}`,
           family_id: 'fam-default-001',
-          display_name: displayName.trim(),
-          avatar_color: avatarColor,
-          phone: phone.trim(),
+          display_name: cleanUser,
+          avatar_color: '#16A34A',
+          phone: null,
           created_at: new Date().toISOString(),
         };
         localStorage.setItem('mandado_profile', JSON.stringify(profile));
-        localStorage.setItem('mandado_family_invite_code', finalFamilyCode);
-        if (familyMode === 'create' && familyName.trim()) {
-          localStorage.setItem('mandado_family_name', familyName.trim());
-        }
+        localStorage.setItem('mandado_family_invite_code', cleanFam);
 
-        if (data.session) {
-          window.location.href = '/';
-        } else {
-          // Attempt immediate login if auto-confirmation is enabled
-          const { error: signInErr } = await supabase.auth.signInWithPassword({
-            email,
-            password,
-          });
-          if (!signInErr) {
-            window.location.href = '/';
-          } else {
-            setLoading(false);
-            setErrorMsg('Cuenta creada con éxito. Revisa tu correo o inicia sesión.');
-            setTimeout(() => {
-              window.location.href = '/login';
-            }, 2000);
-          }
-        }
+        window.location.href = '/';
       } catch (err: any) {
         setErrorMsg(err.message || 'Error al registrarse');
         setLoading(false);
       }
     } else {
+      // Offline / Demo fallback
       try {
         const newProfile = {
           id: `user-${Date.now()}`,
           family_id: 'fam-default-001',
-          display_name: displayName.trim(),
-          avatar_color: avatarColor,
-          phone: phone.trim(),
+          display_name: cleanUser,
+          avatar_color: '#16A34A',
+          phone: null,
           created_at: new Date().toISOString(),
         };
         localStorage.setItem('mandado_profile', JSON.stringify(newProfile));
-        localStorage.setItem('mandado_family_invite_code', finalFamilyCode);
-        if (familyMode === 'create' && familyName.trim()) {
-          localStorage.setItem('mandado_family_name', familyName.trim());
-        }
+        localStorage.setItem('mandado_family_invite_code', cleanFam);
       } catch (e) {
         console.error('Error saving local profile', e);
       }
@@ -163,12 +144,17 @@ export default function RegisterPage() {
         </div>
         <h1 className="text-2xl font-black text-gray-900 tracking-tight">Crear cuenta</h1>
         <p className="text-xs text-gray-500 mt-0.5">
-          Comienza a organizar las compras de tu hogar
+          Organiza las compras de tu hogar con tu familia
         </p>
       </div>
 
       {/* Register Form */}
       <div className="bg-white rounded-3xl p-6 border border-gray-200 shadow-xl space-y-4">
+        <div>
+          <h2 className="text-lg font-bold text-gray-900">Registro</h2>
+          <p className="text-xs text-gray-400 mt-0.5">Crea tu usuario o únete a tu familia</p>
+        </div>
+
         {errorMsg && (
           <div className="p-3 bg-red-50 border border-red-200 rounded-xl text-xs text-red-700 flex items-center gap-2">
             <AlertCircle className="w-4 h-4 text-red-500 shrink-0" />
@@ -177,85 +163,57 @@ export default function RegisterPage() {
         )}
 
         <form onSubmit={handleRegister} className="space-y-3.5">
-          {/* User Display Name */}
+          {/* Código de Familia */}
+          <div>
+            <div className="flex items-center justify-between mb-1">
+              <label className="block text-xs font-semibold text-gray-700">
+                Código de la Familia <span className="text-red-500">*</span>
+              </label>
+              <button
+                type="button"
+                onClick={handleGenerateCode}
+                className="text-[11px] font-semibold text-emerald-600 hover:text-emerald-700 flex items-center gap-1"
+                title="Generar un código aleatorio para una familia nueva"
+              >
+                <Sparkles className="w-3 h-3" />
+                Generar nuevo
+              </button>
+            </div>
+            <div className="relative">
+              <KeyRound className="w-4 h-4 text-gray-400 absolute left-3 top-3" />
+              <input
+                type="text"
+                required
+                placeholder="Ej: MANDADO-JAUR01"
+                value={familyCode}
+                onChange={(e) => setFamilyCode(e.target.value.toUpperCase())}
+                className="w-full pl-9 pr-3 py-2.5 text-xs bg-gray-50 border border-gray-200 rounded-xl uppercase font-mono tracking-wider focus:outline-hidden focus:ring-2 focus:ring-emerald-500 focus:bg-white transition-all"
+              />
+            </div>
+            <p className="text-[10px] text-gray-400 mt-1">
+              Ingresa el código que te dio tu familia, o genera uno si creas una nueva.
+            </p>
+          </div>
+
+          {/* Nombre de Usuario */}
           <div>
             <label className="block text-xs font-semibold text-gray-700 mb-1">
-              Tu nombre o apodo <span className="text-red-500">*</span>
+              Nombre de usuario <span className="text-red-500">*</span>
             </label>
             <div className="relative">
               <User className="w-4 h-4 text-gray-400 absolute left-3 top-3" />
               <input
                 type="text"
                 required
-                placeholder="Ej: Mamá, Lucas, Flor"
-                value={displayName}
-                onChange={(e) => setDisplayName(e.target.value)}
-                className="w-full pl-9 pr-3 py-2 text-xs bg-gray-50 border border-gray-200 rounded-xl focus:outline-hidden focus:ring-2 focus:ring-emerald-500 focus:bg-white transition-all"
+                placeholder="Ej: Nicolas"
+                value={username}
+                onChange={(e) => setUsername(e.target.value)}
+                className="w-full pl-9 pr-3 py-2.5 text-xs bg-gray-50 border border-gray-200 rounded-xl focus:outline-hidden focus:ring-2 focus:ring-emerald-500 focus:bg-white transition-all"
               />
             </div>
           </div>
 
-          {/* Celular / WhatsApp */}
-          <div>
-            <label className="block text-xs font-semibold text-gray-700 mb-1 flex items-center justify-between">
-              <span>Celular / WhatsApp <span className="text-red-500">*</span></span>
-            </label>
-            <div className="relative">
-              <Phone className="w-4 h-4 text-gray-400 absolute left-3 top-3" />
-              <input
-                type="tel"
-                required
-                placeholder="Ej: 2355 512260 o +54 9..."
-                value={phone}
-                onChange={(e) => setPhone(e.target.value)}
-                className="w-full pl-9 pr-3 py-2 text-xs bg-gray-50 border border-gray-200 rounded-xl focus:outline-hidden focus:ring-2 focus:ring-emerald-500 focus:bg-white transition-all font-mono"
-              />
-            </div>
-            <p className="text-[10px] text-gray-500 mt-1">
-              Así tu familia puede enviarte el mandado directamente a tu WhatsApp.
-            </p>
-          </div>
-
-          {/* Avatar Color Picker */}
-          <div>
-            <label className="block text-xs font-semibold text-gray-700 mb-1.5 flex items-center gap-1">
-              <Palette className="w-3.5 h-3.5 text-gray-400" />
-              Color de tu perfil
-            </label>
-            <div className="flex items-center gap-2">
-              {AVATAR_COLORS.map((c) => (
-                <button
-                  key={c}
-                  type="button"
-                  onClick={() => setAvatarColor(c)}
-                  className={`w-7 h-7 rounded-xl transition-all ${
-                    avatarColor === c ? 'ring-3 ring-emerald-500 ring-offset-2 scale-110 shadow-xs' : 'opacity-70 hover:opacity-100'
-                  }`}
-                  style={{ backgroundColor: c }}
-                />
-              ))}
-            </div>
-          </div>
-
-          {/* Email */}
-          <div>
-            <label className="block text-xs font-semibold text-gray-700 mb-1">
-              Correo electrónico <span className="text-red-500">*</span>
-            </label>
-            <div className="relative">
-              <Mail className="w-4 h-4 text-gray-400 absolute left-3 top-3" />
-              <input
-                type="email"
-                required
-                placeholder="ejemplo@correo.com"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                className="w-full pl-9 pr-3 py-2 text-xs bg-gray-50 border border-gray-200 rounded-xl focus:outline-hidden focus:ring-2 focus:ring-emerald-500 focus:bg-white transition-all"
-              />
-            </div>
-          </div>
-
-          {/* Password */}
+          {/* Contraseña */}
           <div>
             <label className="block text-xs font-semibold text-gray-700 mb-1">
               Contraseña <span className="text-red-500">*</span>
@@ -269,78 +227,9 @@ export default function RegisterPage() {
                 placeholder="Mínimo 6 caracteres"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                className="w-full pl-9 pr-3 py-2 text-xs bg-gray-50 border border-gray-200 rounded-xl focus:outline-hidden focus:ring-2 focus:ring-emerald-500 focus:bg-white transition-all"
+                className="w-full pl-9 pr-3 py-2.5 text-xs bg-gray-50 border border-gray-200 rounded-xl focus:outline-hidden focus:ring-2 focus:ring-emerald-500 focus:bg-white transition-all"
               />
             </div>
-          </div>
-
-          {/* Family Mode Selector */}
-          <div className="pt-2 border-t border-gray-100">
-            <label className="block text-xs font-semibold text-gray-700 mb-2">
-              Grupo familiar
-            </label>
-
-            <div className="grid grid-cols-2 gap-2 mb-3">
-              <button
-                type="button"
-                onClick={() => setFamilyMode('create')}
-                className={`py-2 px-2.5 rounded-xl text-xs font-semibold border transition-all text-center ${
-                  familyMode === 'create'
-                    ? 'bg-emerald-50 text-emerald-800 border-emerald-300 shadow-2xs'
-                    : 'bg-gray-50 text-gray-600 border-gray-200 hover:bg-gray-100'
-                }`}
-              >
-                Crear nueva familia
-              </button>
-
-              <button
-                type="button"
-                onClick={() => setFamilyMode('join')}
-                className={`py-2 px-2.5 rounded-xl text-xs font-semibold border transition-all text-center ${
-                  familyMode === 'join'
-                    ? 'bg-emerald-50 text-emerald-800 border-emerald-300 shadow-2xs'
-                    : 'bg-gray-50 text-gray-600 border-gray-200 hover:bg-gray-100'
-                }`}
-              >
-                Tengo un código
-              </button>
-            </div>
-
-            {familyMode === 'create' ? (
-              <div>
-                <label className="block text-[11px] font-semibold text-gray-600 mb-1">
-                  Nombre del grupo familiar
-                </label>
-                <div className="relative">
-                  <Users className="w-4 h-4 text-gray-400 absolute left-3 top-2.5" />
-                  <input
-                    type="text"
-                    required={familyMode === 'create'}
-                    placeholder="Ej: Familia González"
-                    value={familyName}
-                    onChange={(e) => setFamilyName(e.target.value)}
-                    className="w-full pl-9 pr-3 py-2 text-xs bg-gray-50 border border-gray-200 rounded-xl focus:outline-hidden focus:ring-2 focus:ring-emerald-500 focus:bg-white transition-all"
-                  />
-                </div>
-              </div>
-            ) : (
-              <div>
-                <label className="block text-[11px] font-semibold text-gray-600 mb-1">
-                  Código de invitación familiar
-                </label>
-                <div className="relative">
-                  <KeyRound className="w-4 h-4 text-gray-400 absolute left-3 top-2.5" />
-                  <input
-                    type="text"
-                    required={familyMode === 'join'}
-                    placeholder="Ej: MANDADO-PINTO"
-                    value={familyCode}
-                    onChange={(e) => setFamilyCode(e.target.value.toUpperCase())}
-                    className="w-full pl-9 pr-3 py-2 text-xs bg-gray-50 border border-gray-200 rounded-xl uppercase font-mono tracking-wider focus:outline-hidden focus:ring-2 focus:ring-emerald-500 focus:bg-white transition-all"
-                  />
-                </div>
-              </div>
-            )}
           </div>
 
           <button
@@ -348,7 +237,7 @@ export default function RegisterPage() {
             disabled={loading}
             className="w-full py-2.5 px-4 bg-emerald-600 hover:bg-emerald-700 active:scale-[0.98] text-white text-xs font-bold rounded-xl shadow-md transition-all flex items-center justify-center gap-2 mt-4"
           >
-            {loading ? 'Creando cuenta...' : 'Completar registro'}
+            {loading ? 'Creando cuenta...' : 'Crear Cuenta'}
             <ArrowRight className="w-4 h-4" />
           </button>
         </form>
@@ -367,3 +256,4 @@ export default function RegisterPage() {
     </div>
   );
 }
+
