@@ -23,6 +23,7 @@ import {
 import { isSupabaseConfigured, createClient } from '../supabase/client';
 import { getPriceStatus } from '../utils/prices';
 import { formatListName } from '../utils/whatsapp';
+import { generateFamilyInviteCode } from '../utils/family';
 
 interface AppContextType {
   family: Family;
@@ -133,8 +134,13 @@ export const AppProvider = ({ children }: { children: React.ReactNode }) => {
       }
 
       const savedFamilyName = localStorage.getItem('mandado_family_name');
-      if (savedFamilyName) {
-        setFamily((prev) => ({ ...prev, name: savedFamilyName }));
+      const savedInviteCode = localStorage.getItem('mandado_family_invite_code');
+      if (savedFamilyName || savedInviteCode) {
+        setFamily((prev) => ({
+          ...prev,
+          ...(savedFamilyName ? { name: savedFamilyName } : {}),
+          ...(savedInviteCode ? { invite_code: savedInviteCode } : {}),
+        }));
       }
 
       const savedMembers = localStorage.getItem('mandado_family_members');
@@ -176,8 +182,19 @@ export const AppProvider = ({ children }: { children: React.ReactNode }) => {
           setCurrentProfile(updatedProfile);
           localStorage.setItem('mandado_profile', JSON.stringify(updatedProfile));
 
+          const familyInviteCode =
+            meta.family_code ||
+            localStorage.getItem('mandado_family_invite_code') ||
+            generateFamilyInviteCode();
+
+          setFamily((prev) => ({
+            ...prev,
+            name: meta.family_name || prev.name,
+            invite_code: familyInviteCode,
+          }));
+          localStorage.setItem('mandado_family_invite_code', familyInviteCode);
+
           if (meta.family_name) {
-            setFamily((prev) => ({ ...prev, name: meta.family_name }));
             localStorage.setItem('mandado_family_name', meta.family_name);
           }
 
@@ -214,8 +231,19 @@ export const AppProvider = ({ children }: { children: React.ReactNode }) => {
           setCurrentProfile(updatedProfile);
           localStorage.setItem('mandado_profile', JSON.stringify(updatedProfile));
 
+          const familyInviteCode =
+            meta.family_code ||
+            localStorage.getItem('mandado_family_invite_code') ||
+            generateFamilyInviteCode();
+
+          setFamily((prev) => ({
+            ...prev,
+            name: meta.family_name || prev.name,
+            invite_code: familyInviteCode,
+          }));
+          localStorage.setItem('mandado_family_invite_code', familyInviteCode);
+
           if (meta.family_name) {
-            setFamily((prev) => ({ ...prev, name: meta.family_name }));
             localStorage.setItem('mandado_family_name', meta.family_name);
           }
 

@@ -17,6 +17,7 @@ import {
   Phone,
 } from 'lucide-react';
 import { createClient, isSupabaseConfigured } from '@/lib/supabase/client';
+import { generateFamilyInviteCode } from '@/lib/utils/family';
 
 const AVATAR_COLORS = [
   '#16A34A', // Emerald green
@@ -61,6 +62,11 @@ export default function RegisterPage() {
       return;
     }
 
+    const finalFamilyCode =
+      familyMode === 'create'
+        ? generateFamilyInviteCode()
+        : familyCode.trim().toUpperCase();
+
     setLoading(true);
 
     if (isSupabaseConfigured()) {
@@ -76,7 +82,7 @@ export default function RegisterPage() {
               phone: phone.trim(),
               family_mode: familyMode,
               family_name: familyMode === 'create' ? familyName.trim() : null,
-              family_code: familyMode === 'join' ? familyCode.trim() : null,
+              family_code: finalFamilyCode,
             },
           },
         });
@@ -96,6 +102,7 @@ export default function RegisterPage() {
           created_at: new Date().toISOString(),
         };
         localStorage.setItem('mandado_profile', JSON.stringify(profile));
+        localStorage.setItem('mandado_family_invite_code', finalFamilyCode);
         if (familyMode === 'create' && familyName.trim()) {
           localStorage.setItem('mandado_family_name', familyName.trim());
         }
@@ -133,6 +140,7 @@ export default function RegisterPage() {
           created_at: new Date().toISOString(),
         };
         localStorage.setItem('mandado_profile', JSON.stringify(newProfile));
+        localStorage.setItem('mandado_family_invite_code', finalFamilyCode);
         if (familyMode === 'create' && familyName.trim()) {
           localStorage.setItem('mandado_family_name', familyName.trim());
         }

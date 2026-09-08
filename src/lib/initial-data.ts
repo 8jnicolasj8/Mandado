@@ -3,7 +3,7 @@ import { Family, Profile, Store, Product, PriceHistory, ShoppingList, ListItemEn
 export const DEFAULT_FAMILY: Family = {
   id: 'fam-default-001',
   name: 'Mi Familia',
-  invite_code: 'MAND-PINTO',
+  invite_code: 'MANDADO-7X9K2W',
   created_at: new Date().toISOString(),
 };
 

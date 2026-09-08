@@ -38,10 +38,8 @@ export default function PerfilPage() {
   const [phoneInput, setPhoneInput] = useState(currentProfile.phone || '');
   const [phoneSaved, setPhoneSaved] = useState(false);
 
-  // Invite code is based on family.id (first 8 chars uppercase) or fixed code
-  const familyInviteCode = family?.id
-    ? `MANDADO-${family.id.slice(0, 8).toUpperCase()}`
-    : 'MANDADO-PINTO';
+  // Invite code is based on family.invite_code
+  const familyInviteCode = family?.invite_code || 'MANDADO-7X9K2W';
 
   const handleCopyCode = async () => {
     try {
