@@ -2,7 +2,7 @@
 
 import React, { useState, useMemo } from 'react';
 import Link from 'next/link';
-import { Plus, ListFilter, ShoppingBag, Store as StoreIcon, CheckCircle2, MessageCircle } from 'lucide-react';
+import { Plus, ListFilter, ShoppingBag, Store as StoreIcon, CheckCircle2, MessageCircle, Trash2 } from 'lucide-react';
 import { useApp } from '@/lib/context/AppContext';
 import { ListItem } from '@/components/ui/ListItem';
 import { WhatsAppButton, WhatsAppSendModal } from '@/components/ui/WhatsAppButton';
@@ -13,7 +13,7 @@ import { formatCurrency } from '@/lib/utils/prices';
 import { Product, Store, ListItemEnriched } from '@/lib/types/database';
 
 export default function HomePage() {
-  const { currentList, listItems, lists, setCurrentListId } = useApp();
+  const { currentList, listItems, lists, setCurrentListId, removeCheckedItems } = useApp();
 
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [selectedStoreForAdd, setSelectedStoreForAdd] = useState<string | null>(null);
@@ -91,13 +91,28 @@ export default function HomePage() {
             </h2>
           </div>
 
-          <Link
-            href="/listas"
-            className="flex items-center gap-1.5 text-xs font-semibold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 px-3 py-2 rounded-xl transition-colors"
-          >
-            <ListFilter className="w-3.5 h-3.5" />
-            Mis Listas
-          </Link>
+          <div className="flex items-center gap-2">
+            {checkedCount > 0 && (
+              <button
+                onClick={() => {
+                  if (window.confirm(`¿Borrar los ${checkedCount} ${checkedCount === 1 ? 'producto comprado' : 'productos comprados'} de la lista?`)) {
+                    removeCheckedItems();
+                  }
+                }}
+                className="flex items-center gap-1.5 text-xs font-semibold text-red-600 bg-red-50 hover:bg-red-100 px-3 py-2 rounded-xl transition-colors"
+              >
+                <Trash2 className="w-3.5 h-3.5" />
+                Borrar comprados
+              </button>
+            )}
+            <Link
+              href="/listas"
+              className="flex items-center gap-1.5 text-xs font-semibold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 px-3 py-2 rounded-xl transition-colors"
+            >
+              <ListFilter className="w-3.5 h-3.5" />
+              Mis Listas
+            </Link>
+          </div>
         </div>
 
         {/* Progress bar */}

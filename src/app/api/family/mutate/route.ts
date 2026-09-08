@@ -62,6 +62,17 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({ success: !error, error });
       }
 
+      case 'remove_checked_items': {
+        const { data, error } = await admin
+          .from('list_items')
+          .delete()
+          .eq('list_id', payload.list_id)
+          .eq('checked', true)
+          .select('id');
+
+        return NextResponse.json({ success: !error, error, removed: data });
+      }
+
       case 'update_item_qty': {
         const { data, error } = await admin
           .from('list_items')

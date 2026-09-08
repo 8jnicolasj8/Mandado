@@ -49,6 +49,7 @@ interface AppContextType {
     unit?: string | null;
   }) => void;
   removeItem: (itemId: string) => void;
+  removeCheckedItems: () => void;
   changeItemStore: (itemId: string, newStoreId: string, isOverride: boolean) => void;
   addStore: (store: Omit<Store, 'id' | 'family_id' | 'created_at'>) => Store;
   addProduct: (product: { name: string; initialStoreId?: string | null; initialPrice?: number | null }) => Product;
@@ -494,6 +495,11 @@ export const AppProvider = ({ children }: { children: React.ReactNode }) => {
     [mutateServer]
   );
 
+  const removeCheckedItems = useCallback(() => {
+    setRawItems((prev) => prev.filter((item) => !(item.list_id === currentListId && item.checked)));
+    mutateServer('remove_checked_items', { list_id: currentListId });
+  }, [currentListId, mutateServer]);
+
   const changeItemStore = useCallback(
     (itemId: string, newStoreId: string, isOverride: boolean) => {
       setRawItems((prev) =>
@@ -654,6 +660,7 @@ export const AppProvider = ({ children }: { children: React.ReactNode }) => {
     updateItemQuantity,
     addItemToList,
     removeItem,
+    removeCheckedItems,
     changeItemStore,
     addStore,
     addProduct,

@@ -33,6 +33,7 @@ const CATEGORY_EMOJI: Record<string, string> = {
   'Aderezos y Salsas': '🧂',
   'Productos Regionales': '🇦🇷',
   'Autos y Herramientas': '🔧',
+  'Mascotas': '🐾',
   'Mis productos': '⭐',
 };
 
