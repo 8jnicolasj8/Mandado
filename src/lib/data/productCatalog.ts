@@ -1,0 +1,541 @@
+// Catálogo hardcodeado de productos para el mandado familiar.
+// Se define en formato compacto (nombre + variantes + marcas con notas) y se
+// expande a nombres planos tipo "Dulce de leche repostero Chocolinas".
+// Solo se guardan en Supabase los productos que la familia realmente usa.
+
+export type CatalogBrand = string | [brand: string, note: string];
+
+export interface CatalogItem {
+  name?: string;
+  names?: string[];
+  vars?: string[];
+  brands?: CatalogBrand[];
+}
+
+export interface CatalogCategory {
+  category: string;
+  items: Array<CatalogItem | string>;
+}
+
+export interface CatalogProduct {
+  id: string;
+  name: string;
+  category: string;
+}
+
+const isGeneric = (brand: string) => brand.toLowerCase() === 'genérico' || brand.toLowerCase() === 'generico';
+
+const tokenizeNote = (note: string): string[] =>
+  note
+    .split('/')
+    .flatMap((p) => p.split(','))
+    .flatMap((p) => p.split(/\bo\b/))
+    .map((t) => t.trim())
+    .filter(Boolean);
+
+const stripBase = (base: string, token: string): string => {
+  const baseN = normalizeProductName(base);
+  const tokenN = normalizeProductName(token);
+  if (!tokenN) return '';
+  if (tokenN === baseN) return '';
+  if (tokenN.startsWith(baseN + ' ')) return token.slice(baseN.length).trim();
+  if (tokenN.startsWith(baseN)) return token.slice(baseN.length).trim();
+  return token;
+};
+
+export const normalizeProductName = (name: string): string =>
+  name
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^a-z0-9]+/g, ' ')
+    .trim();
+
+const expandItem = (cat: string, item: CatalogItem | string): Array<Omit<CatalogProduct, 'id'>> => {
+  const parsed: CatalogItem = typeof item === 'string' ? { name: item } : item;
+  const baseNames = parsed.name ? [parsed.name] : parsed.names ?? [];
+  const names: string[] = [];
+  for (const base of baseNames) {
+    names.push(base);
+    for (const v of parsed.vars ?? []) names.push(`${base} ${v}`);
+    for (const brand of parsed.brands ?? []) {
+      if (typeof brand === 'string') {
+        if (isGeneric(brand)) continue;
+        names.push(`${base} ${brand}`);
+      } else {
+        const [brandName, note] = brand;
+        const tokens = tokenizeNote(note);
+        if (isGeneric(brandName)) {
+          for (const t of tokens) names.push(`${base} ${stripBase(base, t)}`.trim());
+        } else {
+          for (const t of tokens) {
+            const mid = stripBase(base, t);
+            names.push(`${base}${mid ? ` ${mid}` : ''} ${brandName}`.trim());
+          }
+        }
+      }
+    }
+  }
+  return names.map((name) => ({ name: name.replace(/\s+/g, ' ').trim(), category: cat }));
+};
+
+export const CATALOG: CatalogCategory[] = [
+  {
+    category: 'Almacén / Despensa',
+    items: [
+      { name: 'Arroz', brands: ['Genérico', 'Molinos Ala', 'Gallo', ['Dos Hermanos', 'integral, blanco, parboil']] },
+      { name: 'Fideos secos', vars: ['tallarines'], brands: ['Genérico', 'Matarazzo', 'Don Vicente', 'Terrabusi', 'Molto'] },
+      {
+        names: ['Fideos tirabuzón', 'Fideos moñitos'],
+        brands: ['Genérico', 'Lucchetti', ['Knorr', 'sopas']],
+      },
+      { name: 'Puré de tomate', brands: ['Genérico', 'La Campagnola', 'Knorr', 'Arcor'] },
+      { names: ['Tomate perita entero', 'Tomate perita triturado'], brands: ['Genérico', 'La Campagnola', 'Arcor', 'Napoletana'] },
+      { name: 'Arvejas en lata', brands: ['Genérico', 'Arcor', 'La Campagnola', 'Lira'] },
+      { name: 'Choclo en lata', brands: ['Genérico', 'La Campagnola', 'Arcor'] },
+      { name: 'Atún', vars: ['al natural', 'en aceite'], brands: ['Genérico', 'La Campagnola', 'Marolio', 'Lucky Strike', 'Van Camp\'s'] },
+      { name: 'Jurel en lata', brands: ['Genérico', 'La Campagnola'] },
+      { name: 'Caballa en lata', brands: ['Genérico', 'La Campagnola'] },
+      { name: 'Sardinas', brands: ['Genérico', 'La Campagnola'] },
+      { name: 'Aceitunas', vars: ['verdes', 'negras'], brands: ['Genérico', 'Arcor', 'La Campagnola', 'Pons'] },
+      { name: 'Alcauciles en conserva', brands: ['Genérico', 'La Campagnola'] },
+      { name: 'Palmitos', brands: ['Genérico', 'Arcor', 'La Campagnola'] },
+      { name: 'Champiñones en lata', brands: ['Genérico', 'Arcor'] },
+      { names: ['Porotos negros', 'Porotos alubias', 'Porotos garbanzos'], brands: ['Genérico', 'Arcor', 'Marolio'] },
+      { name: 'Lentejas secas', brands: ['Genérico', 'Marolio', 'Molinos Río de la Plata'] },
+      { name: 'Harina de trigo', vars: ['000', '0000'], brands: ['Genérico', 'Cañuelas', 'Morixe', 'Blancaflor'] },
+      { name: 'Harina de maíz', vars: ['polenta'], brands: ['Genérico', 'Presto Pronta', 'Morixe'] },
+      { name: 'Harina leudante', brands: ['Genérico', 'Cañuelas', 'Blancaflor'] },
+      { name: 'Sal', vars: ['fina', 'gruesa', 'parrillera'], brands: ['Genérico', 'Celusal', 'Dos Anclas'] },
+      { name: 'Azúcar', vars: ['blanca', 'negra', 'impalpable'], brands: ['Genérico', 'Ledesma', 'Chango', 'La Frontera'] },
+      { name: 'Edulcorante', vars: ['líquido', 'en polvo'], brands: ['Genérico', 'Hileret', 'Sucaryl', 'Stevia'] },
+      { name: 'Aceite de girasol', brands: ['Genérico', 'Cocinero', 'Cañuelas', 'Natura', 'Lira'] },
+      { name: 'Aceite de oliva', brands: ['Genérico', 'Nucete', 'Carapelli', 'Zuelo', 'La Española'] },
+      { name: 'Aceite de maíz', brands: ['Genérico', 'Mazola'] },
+      { name: 'Vinagre', vars: ['de alcohol', 'de vino', 'de manzana'], brands: ['Genérico', 'Nucete', 'La Campagnola'] },
+      { name: 'Mayonesa', brands: ['Genérico', 'Hellmann\'s', 'Natura', 'Fanacoa'] },
+      { name: 'Ketchup', brands: ['Genérico', 'Hellmann\'s', 'Arcor', 'Natura'] },
+      { name: 'Mostaza', brands: ['Genérico', 'Hellmann\'s', 'Savora', 'Arcor'] },
+      { name: 'Salsa golf', brands: ['Genérico', 'Hellmann\'s', 'Natura'] },
+      { name: 'Salsa de soja', vars: ['shoyu'], brands: ['Genérico', 'ALDI', 'Kikkoman'] },
+      { name: 'Caldo', vars: ['en cubos', 'en polvo'], brands: ['Genérico', 'Knorr', 'Maggi', 'Gallina Blanca'] },
+      { name: 'Sopas instantáneas', brands: ['Genérico', 'Knorr', 'Maggi'] },
+      { name: 'Miel de abeja', brands: ['Genérico', 'Arcor', 'La Florida', 'Campos del Sur'] },
+      {
+        name: 'Dulce de leche',
+        vars: ['tradicional', 'repostero'],
+        brands: ['Genérico', 'La Serenísima', 'Ilolay', 'Sancor', 'Vacalin', ['Chocolinas', 'Dulce de leche repostero'], ['Águila', 'Dulce de leche colonial']],
+      },
+      { names: ['Dulce de batata', 'Dulce de membrillo'], brands: ['Genérico', 'La Campagnola', 'Arcor', 'La Querencia'] },
+      { name: 'Mermelada', vars: ['de frutilla', 'de durazno', 'de naranja', 'mixta'], brands: ['Genérico', 'Arcor', 'La Campagnola', ['Dulciora', 'sin azúcar'], 'Smucker\'s'] },
+      { name: 'Manteca', brands: ['Genérico', 'La Serenísima', 'Sancor', 'Ilolay', 'Manty'] },
+      { name: 'Margarina', brands: ['Genérico', 'Danica', 'Sancor', 'Ilolay'] },
+      { name: 'Café', vars: ['molido', 'instantáneo', 'en cápsulas'], brands: ['Genérico', 'Cabrales', 'La Morenita', 'Arlistan', ['Dolca', 'instantáneo'], ['Starbucks', 'cápsulas']] },
+      { name: 'Té', vars: ['en saquitos', 'suelto'], brands: ['Genérico', 'La Virginia', 'Taragüí', 'Nobleza Gaucha', ['Green Hills', 'hierbas'], ['Cachamai', 'hierbas']] },
+      { name: 'Yerba mate', vars: ['con palo', 'despalada', 'suave'], brands: ['Genérico', 'Taragüí', 'Playadito', 'Mañanita', 'Cruz de Malta', 'Nobleza Gaucha', 'Rosamonte', 'La Hoja', 'Amanda', ['CBSe', 'saborizadas']] },
+      { name: 'Leche en polvo', brands: ['Genérico', 'La Serenísima', 'Sancor', 'Nido'] },
+      { name: 'Leche condensada', brands: ['Genérico', 'La Lechera', 'Sancor', 'Ilolay'] },
+      { name: 'Cacao en polvo', brands: ['Genérico', 'Chocolito', 'La Morenita', ['Toddy', 'saborizada']] },
+    ],
+  },
+  {
+    category: 'Lácteos, Huevos y Fiambrería',
+    items: [
+      { name: 'Leche fluida', vars: ['entera', 'descremada', 'parcialmente descremada'], brands: ['Genérico', 'La Serenísima', 'Sancor', 'Ilolay', 'Milkaut'] },
+      { name: 'Leche saborizada', vars: ['de chocolate', 'de frutilla'], brands: ['Genérico', 'La Serenísima', 'Sancor', 'Ilolay'] },
+      { name: 'Crema de leche', vars: ['para cocinar', 'para batir'], brands: ['Genérico', 'La Serenísima', 'Sancor', 'Ilolay'] },
+      { name: 'Yogur', vars: ['firme', 'batido', 'bebible'], brands: ['Genérico', 'La Serenísima', 'Sancor', 'Ilolay', 'Yogurísimo', ['Ser', 'proteico']] },
+      { names: ['Yogur con cereales', 'Yogur con frutas'], brands: ['Genérico', 'La Serenísima', 'Sancor', ['Yogu Yogu', 'infantil']] },
+      { name: 'Queso crema', brands: ['Genérico', 'La Serenísima', 'Mendicrim', 'Casancrem', 'Sancor'] },
+      { name: 'Queso rallado', vars: ['parmesano', 'sardo'], brands: ['Genérico', 'La Serenísima', 'Sancor', 'Ilolay', 'Pauly'] },
+      { name: 'Queso en hebras', vars: ['para pizza'], brands: ['Genérico', 'La Serenísima', 'Sancor', 'Milkaut'] },
+      { name: 'Queso Mozzarella', vars: ['en bloque', 'rallado'], brands: ['Genérico', 'La Serenísima', 'Sancor', 'Tonutti'] },
+      { name: 'Queso Cremoso', vars: ['tipo Port Salut'], brands: ['Genérico', 'La Serenísima', 'Sancor', 'Ilolay'] },
+      { name: 'Queso Cuartirolo', brands: ['Genérico', 'La Serenísima', 'Sancor'] },
+      { names: ['Queso Gouda', 'Queso Edam', 'Queso Pategrás'], brands: ['Genérico', 'Sancor', 'La Serenísima', 'Milkaut'] },
+      { names: ['Queso Roquefort', 'Queso Azul'], brands: ['Genérico', 'La Serenísima', 'Sancor'] },
+      { names: ['Queso Tybo', 'Queso Sandwich en fetas'], brands: ['Genérico', 'La Serenísima', 'Sancor', ['Ilolay', 'Mantecoso']] },
+      { name: 'Queso Untable', vars: ['port salut', 'crema'], brands: ['Genérico', 'La Serenísima', 'Finlandia', 'Sancor'] },
+      { name: 'Queso de rallar en bloque', brands: ['Genérico', 'Reggianito', 'Sancor', 'Pauly'] },
+      { name: 'Ricota', brands: ['Genérico', 'La Serenísima', 'Sancor', 'Milkaut'] },
+      { name: 'Huevos', vars: ['blancos', 'colorados', 'camperos'], brands: [['Genérico', 'por unidad o maple'], 'Avex', 'La Granja', 'Granja 3 Soles'] },
+      { name: 'Fiambre de cerdo', vars: ['cocido'], brands: ['Genérico', 'Paladini', 'Morón', ['3 Cerditos', 'feteado']] },
+      { name: 'Jamón cocido', vars: ['natural', 'con especias'], brands: ['Genérico', 'Paladini', 'Morón', '3 Cerditos', 'La Campagnola'] },
+      { name: 'Jamón crudo', vars: ['tipo Serrano', 'Parma'], brands: ['Genérico', 'Paladini', 'Morón', 'La Española'] },
+      { names: ['Bondiola', 'Panceta ahumada'], brands: ['Genérico', 'Paladini', 'Morón', '3 Cerditos'] },
+      { name: 'Salame', vars: ['salamín', 'milán', 'york'], brands: ['Genérico', 'Paladini', 'Morón', '3 Cerditos', 'La Campagnola'] },
+      { names: ['Chorizo seco', 'Chorizo Cantimpalo'], brands: ['Genérico', 'Paladini', 'Morón', '3 Cerditos'] },
+      { name: 'Mortadela', brands: ['Genérico', 'Paladini', 'Morón', '3 Cerditos'] },
+      { name: 'Pepperoni', brands: ['Genérico', 'Paladini', 'Morón'] },
+      { name: 'Pechuga de pavo', vars: ['feteada'], brands: ['Genérico', 'Paladini', 'Morón', '3 Cerditos'] },
+      { name: 'Matambre', vars: ['arrollado', 'de cerdo'], brands: ['Genérico', 'Paladini', 'Morón'] },
+      { name: 'Manteca de cerdo', vars: ['grasa'], brands: ['Genérico', 'Paladini'] },
+    ],
+  },
+  {
+    category: 'Carnicería',
+    items: [
+      'Carne de Res (Cortes)',
+      { name: 'Asado', vars: ['tira', 'costilla'], brands: ['Genérico'] },
+      'Tira de asado con hueso',
+      { name: 'Vacío', brands: ['Genérico', 'Cabaña Las Lilas'] },
+      'Matambre de res',
+      'Falda',
+      'Paleta',
+      'Cuadril',
+      { name: 'Lomo de res', brands: ['Genérico', 'ArreBeef'] },
+      { name: 'Bife de costilla', vars: ['ancho', 'chorizo'], brands: ['Genérico', 'Swift'] },
+      'Bife de lomo',
+      'Ojo de bife',
+      'Tapa de asado',
+      'Aguja',
+      'Corte peceto',
+      'Nalga',
+      'Colita de cuadril',
+      { name: 'Carne picada', vars: ['común', 'especial', 'molida'], brands: ['Genérico'] },
+      'Rosbif',
+      { name: 'Hueso', vars: ['para sopa', 'de médula'], brands: ['Genérico'] },
+      'Carne de Cerdo',
+      'Pechito de cerdo',
+      'Costillar de cerdo',
+      'Bondiola de cerdo',
+      'Matambre de cerdo',
+      'Pernil',
+      'Chuleta de cerdo',
+      'Carne picada de cerdo',
+      { name: 'Chorizo criollo', brands: ['Genérico'] },
+      'Chorizo parrillero',
+      { name: 'Morcilla', vars: ['de cerdo', 'de arroz'], brands: ['Genérico'] },
+      'Aves',
+      { name: 'Pollo entero', brands: ['Genérico', 'Granja Tres Arroyos', 'Eco Pollo'] },
+      { name: 'Pechuga de pollo', vars: ['deshuesada'], brands: ['Genérico', 'Granja Tres Arroyos'] },
+      { names: ['Pata de pollo', 'Muslo de pollo', 'Alas de pollo'], brands: ['Genérico', 'Granja Tres Arroyos'] },
+      { name: 'Suprema de pollo', vars: ['filete'], brands: ['Genérico', 'Granja Tres Arroyos'] },
+      'Pollo deshuesado',
+      'Menudencias de pollo',
+      { name: 'Pavo', vars: ['entero', 'pechuga'], brands: ['Genérico'] },
+      'Pescados y Mariscos',
+      { name: 'Merluza', vars: ['filete', 'en rodajas'], brands: ['Genérico', ['Capitan Gourmet', 'congelado']] },
+      'Lenguado',
+      { name: 'Salmón', vars: ['fresco', 'congelado'], brands: ['Genérico', 'Los Fiordos'] },
+      'Trucha',
+      'Atún lomo',
+      'Pechito de surubí',
+      { name: 'Calamares', vars: ['anillos'], brands: ['Genérico', 'Capitan Gourmet'] },
+      { name: 'Langostinos', vars: ['limpios', 'con cáscara'], brands: ['Genérico', 'Capitan Gourmet'] },
+      'Mejillones',
+      'Vieiras',
+      { name: 'Rabas', vars: ['congeladas'], brands: ['Genérico', 'Mar del Plata'] },
+    ],
+  },
+  {
+    category: 'Verdulería',
+    items: [
+      'Verduras de Hoja',
+      'Lechuga',
+      'Lechuga crespa',
+      'Lechuga mantecosa',
+      'Lechuga escarola',
+      'Acelga',
+      'Espinaca',
+      'Rúcula',
+      'Radicheta',
+      'Repollo blanco',
+      'Repollo colorado',
+      'Apio',
+      'Perejil liso',
+      'Perejil rizado',
+      'Cilantro',
+      'Albahaca',
+      'Orégano fresco',
+      'Berros',
+      'Verduras de Fruto',
+      'Tomate redondo',
+      'Tomate perita',
+      'Tomate cherry',
+      'Tomate larga vida',
+      'Morrón rojo',
+      'Morrón verde',
+      'Morrón amarillo',
+      'Pepino',
+      'Zapallito',
+      'Zapallito largo',
+      'Zapallo anco',
+      'Zapallo cabutia',
+      'Zapallo calabaza',
+      'Berenjena',
+      'Calabacín',
+      'Zucchini',
+      'Choclo en chala',
+      'Arvejas',
+      'Chaucha',
+      'Poroto verde',
+      'Haba',
+      'Hortalizas y Bulbos',
+      'Cebolla',
+      'Cebolla blanca',
+      'Cebolla colorada',
+      'Cebolla chalota',
+      'Ajo',
+      'Puerro',
+      'Cebolla de verdeo',
+      'Verdeo',
+      'Remolacha',
+      'Betarraga',
+      'Nabo',
+      'Rábano',
+      'Hinojo',
+      'Tubérculos y Raíces',
+      'Papa blanca',
+      'Papa colorada',
+      'Papa del Sur',
+      'Papa nueva',
+      'Batata blanca',
+      'Batata colorada',
+      'Mandioca',
+      'Yuca',
+      'Zanahoria',
+      'Frutas',
+      'Manzana roja',
+      'Manzana Granny Smith',
+      'Manzana Gala',
+      'Manzana criolla',
+      'Pera Williams',
+      'Pera Packham',
+      'Pera Conferencia',
+      'Durazno amarillo',
+      'Durazno blanco',
+      'Ciruela roja',
+      'Ciruela amarilla',
+      'Pelón',
+      'Pavo',
+      'Almendras frescas',
+      'Níspero',
+      'Damasco',
+      'Cerezas',
+      'Naranja de jugo',
+      'Naranja de mesa',
+      'Mandarina',
+      'Pomelo rosado',
+      'Pomelo amarillo',
+      'Limón amarillo',
+      'Limón criollo',
+      'Lima',
+      'Banana Cavendish',
+      'Banana Valery',
+      'Palta Hass',
+      'Palta fuerte',
+      'Kiwi',
+      'Mango',
+      'Ananá',
+      'Piña',
+      'Papaya',
+      'Melón cantalupe',
+      'Melón honeydew',
+      'Sandía',
+      'Sandía sin semilla',
+      'Frutilla',
+      'Fresa',
+      'Arándano',
+      'Frambuesa',
+      'Moras',
+      'Uva criolla',
+      'Uva moscatel',
+      'Uva sin semilla',
+      'Uva borgoña',
+      'Higos',
+      'Caqui',
+      'Kaki',
+      'Granada',
+      'Hongos frescos',
+      'Champiñones',
+      'Gírgolas',
+    ],
+  },
+  {
+    category: 'Kiosco, Golosinas y Snacks',
+    items: [
+      { name: 'Alfajor', vars: ['tradicional', 'de maicena', 'negro', 'blanco'], brands: ['Genérico', ['Havanna', 'de chocolate'], 'Cachafaz', ['Águila', 'oro'], ['Terrabusi', 'Tofi'], ['Jorgito', 'clásico'], 'Jorgelín', 'Milka', ['Oreo', 'alfajor'], 'Bon o Bon', ['Dos en Uno', 'Guaymallén'], ['Guaymallén', 'de fruta'], 'Fulbito'] },
+      { name: 'Galletitas dulces', vars: ['surtidas', 'de agua', 'rellenas'], brands: ['Genérico', ['Bauducco', 'Waffer'], ['Diversión', 'de maicena'], ['Don Satur', 'bizcochitos de grasa'], 'Criollitas', ['Maná', 'galletitas de agua'], 'Sonrisas', ['Panal', 'de miel'], 'Oreo', 'Chocolinas', ['Jorgito', 'chocolate'], 'Bon o Bon', ['Serenito', 'de campo'], 'Vauquita'] },
+      { name: 'Galletitas rellenas', vars: ['limón', 'frutilla', 'cacao'], brands: ['Genérico', 'Tita', ['Chocotorta', 'de chocolate'], 'Pepitos', ['Triple', 'Rasta'], 'Kraken'] },
+      { name: 'Galletitas saladas', brands: ['Genérico', ['Don Satur', 'saladas'], ['Páginas', 'Diversión'], 'Ritz', 'Crackers'] },
+      { name: 'Papas fritas', brands: ['Genérico', ['Lay\'s', 'clásicas, saborizadas'], 'Pringles', 'Papas Pay'] },
+      'Papas fritas congeladas para horno',
+      { name: 'Chizitos', vars: ['de queso'], brands: ['Genérico'] },
+      { name: 'Palitos de queso', brands: ['Genérico', 'Chip'] },
+      { name: 'Chips de maíz', brands: ['Genérico', 'Doritos'] },
+      { name: 'Maníes', vars: ['salados', 'japoneses'], brands: ['Genérico', 'Manisel'] },
+      { name: 'Mix de cereales', brands: ['Genérico', 'Granix'] },
+      'Chetos',
+      { name: 'Bastones de queso', brands: ['Genérico', 'Tregar'] },
+      { name: 'Caramelos', vars: ['masticables', 'duros'], brands: ['Genérico', ['Palitos de la selva', 'Arcor'], 'Butter Toffee', 'Menthoplus', 'Hall\'s', ['Fizz', 'Arcor'], ['Mogul', 'gomitas'], 'Tutti Frutti'] },
+      { name: 'Chicles', vars: ['en tiras', 'en bolitas'], brands: ['Genérico', 'Beldent', 'Trident', 'Orbit', 'Freedent', ['Pimpollo', 'Arcor']] },
+      { name: 'Chupetines', brands: ['Genérico', ['Topline', 'Arcor'], 'Trompis', 'Vizzio', ['Pop', 'con chicle']] },
+      { name: 'Barrita de cereal', brands: ['Genérico', ['Cereal Mix', 'Granix'], 'Fitness', ['Lay\'s', 'barras'], ['Quaker', 'barras de avena'], ['Natura', 'galletas de arroz']] },
+      { name: 'Chocolate', vars: ['con leche', 'amargo', 'blanco'], brands: ['Genérico', 'Milka', ['Nestlé', 'Crujientes'], 'Águila', ['Bon o Bon', 'bombón'], 'Ferrero Rocher', 'Rocher', ['Cofler', 'Sublime'], ['Jack', 'chocolate']] },
+      { name: 'Bombones surtidos', brands: ['Genérico', 'Bon o Bon', 'Felfort', 'Águila'] },
+      { name: 'Helado', vars: ['palito', 'crema'], brands: ['Genérico', ['Prestigio', 'Águila'], 'Marbú', 'Boin', ['Luchetti', 'agua tipo potecito'], ['Grido', 'postres congelados']] },
+      { name: 'Agua', vars: ['soda', 'mineral', 'sin gas'], brands: ['Genérico', 'Villavicencio', 'Dolores', 'Levité'] },
+      { name: 'Gaseosa', vars: ['de cola', 'de limón', 'de naranja', 'de pomelo'], brands: ['Genérico', 'Coca-Cola', 'Pepsi', 'Sprite', 'Fanta', 'Seven Up', 'Manaos', ['Baggio', 'limonada'], ['Schweppes', 'agua tónica, pomelo'], ['Passoa', 'jugo'], ['Cunnington', 'aguas saborizadas']] },
+      { name: 'Jugo en polvo', brands: ['Genérico', 'Tang', ['Clight', 'light'], 'Kool-Aid', ['Baggio', 'natural mix']] },
+      { name: 'Jugo en caja', brands: ['Genérico', 'Baggio', 'Cepita', ['Ades', 'soja'], ['Sé', 'té'], ['Tonus', 'milk shake']] },
+      { name: 'Bebida energizante', brands: ['Speed', 'Monster', 'Red Bull', 'Flying Horse'] },
+      { name: 'Bebida isotónica', brands: ['Gatorade', 'Powerade', 'Aquarius'] },
+      { name: 'Cerveza', vars: ['en lata', 'en botella', 'schop'], brands: ['Genérico', 'Quilmes', 'Brahma', 'Budweiser', 'Heineken', ['Patagonia', 'ampersand, 24.7'], 'Antares', ['Imperial', 'San Carlos']] },
+      { name: 'Vino', vars: ['tinto', 'blanco', 'rosado', 'espumante'], brands: ['Genérico', 'Norton', 'Catena Zapata', 'Trivento', 'Salentein', 'Trapiche', 'Luigi Bosca', 'Santa Julia', 'Etchart', 'Mumm', 'Chandon'] },
+      { names: ['Vino Malbec', 'Vino Torrontés'], brands: ['Norton', 'Catena Zapata', 'Trivento', 'Salentein', 'Trapiche', 'Luigi Bosca', 'Santa Julia', 'Etchart'] },
+      { name: 'Fernet', brands: ['Branca', 'Fernet 1882', 'Cinzano', 'Campari'] },
+      { name: 'Whisky', brands: ['Buchanan\'s', 'Jack Daniel\'s', 'Johnnie Walker', 'Old Par'] },
+      { name: 'Vodka', brands: ['Smirnoff', 'Absolut', 'Skyy'] },
+      { name: 'Ron', brands: ['Havana Club', 'Bacardi', 'Captain Morgan'] },
+      { name: 'Aperitivo', brands: ['Cinzano', 'Martini', 'Campari', 'Cynar'] },
+      { name: 'Cigarrillos', brands: ['Marlboro', 'Philip Morris', 'Camel', 'Lucky Strike', 'Chesterfield', 'Rothmans', 'Derby', 'Nevada', 'Bond', 'Pall Mall'] },
+      { name: 'Tabaco para armar', brands: ['Los Andes', 'Marlboro', 'Drum', 'Van Nelle', 'American Spirit'] },
+      { name: 'Filtros y liyos', brands: ['OCB', 'Liar', 'Raw'] },
+      { name: 'Preservativos', brands: ['Prime', 'Playboy', 'Tulipán', 'Movi'] },
+      { name: 'Encendedores', brands: ['Bic', 'Clipper', 'Cricket'] },
+      { name: 'Fósforos', brands: ['Rama', 'Los Andes'] },
+      { name: 'Pañuelos descartables', brands: ['Genérico', 'Scott', 'Elite', 'Camelia'] },
+    ],
+  },
+  {
+    category: 'Panadería y Facturas',
+    items: [
+      { name: 'Pan', vars: ['de campo', 'francés', 'criollo', 'de miga'], brands: ['Genérico', ['Bimbo', 'de molde'], ['Fargo', 'de molde'], ['Havanna', 'de manteca'], ['Krach', 'de campo']] },
+      { name: 'Panetón', brands: ['Bimbo', 'Fargo'] },
+      { name: 'Facturas', vars: ['croissants', 'medialunas', 'vigilantes', 'bolas de fraile', 'cañoncitos'], brands: ['Genérico', 'San Giorgio', 'Lecor'] },
+      { name: 'Bizcochitos', vars: ['de grasa', 'de anís'], brands: ['Genérico', 'Don Satur'] },
+      { name: 'Pizza', vars: ['prepizza', 'congelada'], brands: ['Genérico', ['Fargo', 'base de pizza'], ['Natura', 'masa']] },
+      'Tortas fritas',
+      'Bolas de fraile',
+      'Pasteles de dulce de leche',
+    ],
+  },
+  {
+    category: 'Congelados y Heladeras',
+    items: [
+      { name: 'Helado', vars: ['crema', 'de agua', 'postre'], brands: ['Genérico', ['Grido', 'balde'], 'Dánica', 'Boin', 'Marbú'] },
+      { name: 'Papas fritas congeladas', vars: ['bastón', 'noisette'], brands: ['Genérico', 'McCain', 'Fargo'] },
+      { name: 'Hamburguesas', vars: ['de res', 'de pollo', 'vegetales'], brands: ['Genérico', ['Paty', 'Swift'], 'Paladini', 'Cabaña Las Lilas', ['NotCo', 'vegetal The Not Burger']] },
+      { name: 'Milanesas', vars: ['de pollo', 'de carne'], brands: ['Genérico', 'Paladini', 'Granja Tres Arroyos', ['Swift', 'de soja']] },
+      { name: 'Medallones de pescado', brands: ['Genérico', 'Capitan Gourmet'] },
+      { name: 'Rabas congeladas', brands: ['Genérico', 'Mar del Plata', 'Capitan Gourmet'] },
+      { name: 'Empanadas', vars: ['de carne', 'de pollo', 'de jamón y queso', 'de humita'], brands: ['Genérico', 'El Criollo', 'La Salteña', 'Tía Fanny', 'Pingo'] },
+      { name: 'Pizza precocida', brands: ['Genérico', ['Giorno', 'Fargo'], 'El Trigal'] },
+      { name: 'Verduras congeladas', vars: ['arvejas', 'choclo', 'espinaca', 'brócoli'], brands: ['Genérico', ['Maizena', 'Green Giant']] },
+      { name: 'Frutas congeladas', vars: ['frutillas', 'duraznos'], brands: ['Genérico'] },
+    ],
+  },
+  {
+    category: 'Limpieza y Hogar',
+    items: [
+      { name: 'Detergente', vars: ['para vajilla'], brands: ['Genérico', 'Vivere', 'Nova', 'Axion', 'Míster Músculo', ['Ala', 'líquido']] },
+      { name: 'Lavandina', brands: ['Genérico', ['Ayudin', 'lavandina'], ['Clorox', 'lavandina'], 'Candida'] },
+      { name: 'Jabón para ropa', vars: ['en polvo', 'líquido'], brands: ['Genérico', 'Ala', 'Skip', 'Ariel', ['Dreft', 'bebé'], 'Bolívar', 'Magistral'] },
+      { name: 'Suavizante', brands: ['Genérico', 'Vivere', 'Confort', 'Downy', ['Ala', 'suavizante']] },
+      { name: 'Quita manchas', brands: ['Vanish', 'Ariel', 'Clorox'] },
+      { name: 'Limpiador multiuso', brands: ['Genérico', 'Míster Músculo', 'Cif', ['Axion', 'limpiador']] },
+      { name: 'Aromatizante', brands: ['Glade', 'Air Wick', 'Oust', 'Fabuloso'] },
+      { name: 'Cera para muebles', brands: ['Pledge', ['Míster Músculo', 'muebles']] },
+      { name: 'Papel higiénico', brands: ['Genérico', 'Elite', 'Higienol', 'Scott', 'Pétalo', 'Bella'] },
+      { name: 'Papel de cocina', brands: ['Genérico', 'Scott', 'Elite', 'Bella', 'Happy'] },
+      { name: 'Servilletas', brands: ['Genérico', 'Elite', 'Scott', 'Bella'] },
+      { names: ['Repasador', 'Paño de cocina'], brands: ['Genérico', 'Klip'] },
+      'Virulana',
+      { name: 'Bolsas para basura', brands: ['Genérico', 'Tulipán', 'Rapicest'] },
+      { name: 'Bolsas de conservación', brands: ['Genérico', 'Tulipán', 'Rapicest'] },
+      { name: 'Papel aluminio', brands: ['Genérico', 'Rapicest', 'Glad'] },
+      { name: 'Film transparente', brands: ['Genérico', 'Rapicest', 'Glad'] },
+    ],
+  },
+  {
+    category: 'Higiene Personal y Belleza',
+    items: [
+      { name: 'Jabón de tocador', vars: ['barra', 'líquido'], brands: ['Genérico', 'Rexona', 'Dove', 'Lux', 'Nivea', 'Protex'] },
+      { name: 'Shampoo', brands: ['Genérico', ['Elvive', 'L\'Oréal'], 'Sedal', 'Pantene', 'Head & Shoulders', ['Tío Nacho', 'de piojos'], 'Natura', 'Aveen'] },
+      { name: 'Acondicionador', brands: ['Genérico', ['Elvive', 'L\'Oréal'], 'Sedal', 'Pantene', 'L\'Oréal'] },
+      { name: 'Gel de baño', brands: ['Genérico', 'Dove', 'Rexona', 'Nivea', 'Lux'] },
+      { name: 'Crema de ducha', brands: ['Genérico', 'Dove', 'Rexona', 'Nivea', 'Lux'] },
+      { name: 'Desodorante', vars: ['aerosol', 'barra', 'roll-on'], brands: ['Genérico', 'Rexona', 'Dove', 'Nivea', 'Lynx', 'Old Spice', 'Adidas'] },
+      { name: 'Pasta dental', brands: ['Genérico', 'Colgate', 'Crest', 'Oral-B', 'Triumph', 'Cepita'] },
+      { name: 'Cepillo de dientes', brands: ['Genérico', 'Colgate', 'Oral-B', 'Cepita'] },
+      { name: 'Enjuague bucal', brands: ['Genérico', 'Colgate', 'Listerine', 'Oral-B'] },
+      { name: 'Crema hidratante', brands: ['Genérico', 'Nivea', 'Dove', 'L\'Oréal', 'Avon', 'CeraVe'] },
+      { name: 'Protector solar', brands: ['Genérico', ['ISDIN', 'fotoprotector'], 'Nivea', ['L\'Oréal', 'solar'], 'Lancer'] },
+      { name: 'Desmaquillante', brands: ['Genérico', 'Dove', 'Nivea'] },
+      { name: 'Algodón', brands: ['Genérico', 'Copacabana'] },
+      { name: 'Maquinilla de afeitar', brands: ['Gillette', 'Presto', 'Bic'] },
+      { name: 'Crema de afeitar', brands: ['Gillette', 'Nivea', 'Dove'] },
+      { name: 'Pañales', brands: ['Genérico', 'Pampers', 'Huggies', 'Babysec', 'Tena'] },
+      { name: 'Toallitas húmedas', brands: ['Genérico', 'Pampers', 'Huggies', 'Dove'] },
+    ],
+  },
+  {
+    category: 'Bebés e Infancia',
+    items: [
+      { name: 'Leche de fórmula', vars: ['en polvo', 'líquida'], brands: ['Genérico', 'Nestlé Nan', 'Sancor Bebé', 'Similac', 'Enfamil'] },
+      { name: 'Papillas', brands: ['Genérico', 'Nestlé'] },
+      { name: 'Potitos', brands: ['Nestlé'] },
+      { name: 'Galletitas para bebé', brands: ['Bebeleche', 'Hipp', 'Nestlé'] },
+      { name: 'Cereales instantáneos', brands: ['Nestlé', 'Quaker'] },
+    ],
+  },
+  {
+    category: 'Aderezos y Salsas',
+    items: [
+      { name: 'Salsa blanca', brands: ['Genérico', ['Knorr', 'en polvo'], 'Alacena'] },
+      { name: 'Salsa de tomate', vars: ['con hierbas', 'condimentada'], brands: ['Genérico', 'Knorr', 'Arcor', 'Napoletana'] },
+      { name: 'Salsa barbacoa', brands: ['Genérico', 'Heinz', 'Savora'] },
+      { names: ['Salsa de ajo', 'Salsa criolla', 'Chimichurri'], brands: ['Genérico', 'Knorr', 'Natura'] },
+      { name: 'Salsa inglesa', brands: ['Genérico', 'Savora', 'Lea & Perrins'] },
+      { name: 'Pesto', vars: ['de albahaca'], brands: ['Genérico', 'Knorr', 'Barilla', 'Naturaleza'] },
+      { name: 'Manteca de maní', brands: ['Genérico', 'Dulcisa', 'American Foods', ['Mighty', 'sin azúcar']] },
+      { name: 'Dulce de membrillo en panes', brands: ['Genérico', 'La Querencia', 'El Relicario'] },
+      { name: 'Dulce de batata en panes', brands: ['Genérico', 'La Querencia', 'El Relicario'] },
+    ],
+  },
+  {
+    category: 'Productos Regionales',
+    items: [
+      'Pastelitos de dulce de batata',
+      { name: 'Turrón', vars: ['de maní', 'de almendra'], brands: ['Genérico', 'Arcor', 'Georgalos'] },
+      { name: 'Maníes con chocolate', brands: ['Genérico', 'ManiManía', 'Arcor', 'Top'] },
+      { name: 'Garrapiñadas', brands: ['Genérico'] },
+    ],
+  },
+  {
+    category: 'Autos y Herramientas',
+    items: [
+      { name: 'Lavacoches', brands: ['Genérico', 'Sonax', 'Protector'] },
+      { name: 'Cera para auto', brands: ['Genérico', 'Polimax'] },
+      { names: ['Bolsas de basura 100L', 'Bolsas de basura 120L'], brands: ['Genérico', 'Rapicest', 'Tulipán'] },
+    ],
+  },
+];
+
+const buildCatalog = (): CatalogProduct[] => {
+  const seen = new Set<string>();
+  const out: CatalogProduct[] = [];
+  let index = 0;
+
+  for (const cat of CATALOG) {
+    for (const item of cat.items) {
+      for (const flat of expandItem(cat.category, item)) {
+        const key = normalizeProductName(flat.name);
+        if (seen.has(key)) continue;
+        seen.add(key);
+        out.push({ id: `catalog-${index++}`, name: flat.name, category: flat.category });
+      }
+    }
+  }
+
+  return out;
+};
+
+export const PRODUCT_CATALOG: CatalogProduct[] = buildCatalog();
+
+export const searchCatalog = (query: string): CatalogProduct[] => {
+  const q = normalizeProductName(query);
+  if (!q) return [];
+  return PRODUCT_CATALOG.filter((p) => normalizeProductName(p.name).includes(q)).slice(0, 50);
+};

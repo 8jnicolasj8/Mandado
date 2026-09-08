@@ -3,6 +3,8 @@
 import React, { useState, useMemo } from 'react';
 import { X, Plus, PlusCircle, Search, Sparkles } from 'lucide-react';
 import { useApp } from '@/lib/context/AppContext';
+import { Product } from '@/lib/types/database';
+import { PRODUCT_CATALOG, normalizeProductName } from '@/lib/data/productCatalog';
 import { StoreSavingsModal } from './StoreSavingsModal';
 
 interface AddProductModalProps {
@@ -36,13 +38,36 @@ export const AddProductModal: React.FC<AddProductModalProps> = ({
     canonicalPrice: number | null;
   } | null>(null);
 
+  // Searchable products: DB products first, then catalog items the family
+  // hasn't created yet (only stored in Supabase when actually used).
+  const searchableProducts = useMemo<Array<Product & { category?: string; isCatalog: boolean }>>(() => {
+    const seen = new Set(products.map((p) => normalizeProductName(p.name)));
+    const catalog = PRODUCT_CATALOG.filter(
+      (c) => !seen.has(normalizeProductName(c.name))
+    );
+    const mappedCatalog: Array<Product & { category?: string; isCatalog: boolean }> = catalog.map((c) => ({
+      id: c.id,
+      family_id: '',
+      name: c.name,
+      canonical_store_id: null,
+      created_at: '',
+      category: c.category,
+      isCatalog: true,
+    }));
+    const mappedDb: Array<Product & { category?: string; isCatalog: boolean }> = products.map((p) => ({
+      ...p,
+      category: undefined,
+      isCatalog: false,
+    }));
+    return [...mappedDb, ...mappedCatalog];
+  }, [products]);
+
   // Filtered products list
   const filteredProducts = useMemo(() => {
-    if (!searchQuery.trim()) return products;
-    return products.filter((p) =>
-      p.name.toLowerCase().includes(searchQuery.toLowerCase())
-    );
-  }, [products, searchQuery]);
+    if (!searchQuery.trim()) return searchableProducts;
+    const q = normalizeProductName(searchQuery);
+    return searchableProducts.filter((p) => normalizeProductName(p.name).includes(q));
+  }, [searchableProducts, searchQuery]);
 
   if (!isOpen) return null;
 
@@ -50,7 +75,7 @@ export const AddProductModal: React.FC<AddProductModalProps> = ({
     setSelectedProductId(productId);
     setIsCreatingNewProduct(false);
 
-    const product = products.find((p) => p.id === productId);
+    const product = searchableProducts.find((p) => p.id === productId);
     if (product?.canonical_store_id && !initialStoreId) {
       setSelectedStoreId(product.canonical_store_id);
     }
@@ -91,6 +116,24 @@ export const AddProductModal: React.FC<AddProductModalProps> = ({
 
   const parsedQuantity = parseFloat(quantityInput.replace(',', '.')) || 1;
 
+  // Catalog products don't exist in Supabase yet: reuse an existing DB product
+  // with the same name or create the row on demand so list_items stay valid.
+  const ensureDbProduct = (productId: string): string => {
+    const pick = searchableProducts.find((p) => p.id === productId);
+    if (!pick || !pick.isCatalog) return productId;
+
+    const existing = products.find(
+      (p) => normalizeProductName(p.name) === normalizeProductName(pick.name)
+    );
+    if (existing) return existing.id;
+
+    const created = addProduct({
+      name: pick.name,
+      initialStoreId: selectedStoreId || null,
+    });
+    return created.id;
+  };
+
   const handleFormSubmit = (e: React.FormEvent) => {
     e.preventDefault();
 
@@ -103,6 +146,8 @@ export const AddProductModal: React.FC<AddProductModalProps> = ({
         initialStoreId: selectedStoreId || null,
       });
       targetProductId = created.id;
+    } else if (targetProductId) {
+      targetProductId = ensureDbProduct(targetProductId);
     }
 
     if (!targetProductId) return;
@@ -150,7 +195,7 @@ export const AddProductModal: React.FC<AddProductModalProps> = ({
     if (!savingsModalData) return;
 
     addItemToList({
-      productId: selectedProductId,
+      productId: ensureDbProduct(selectedProductId),
       storeId: savingsModalData.canonicalStoreId,
       isStoreOverride: false,
       quantity: parsedQuantity,
@@ -165,7 +210,7 @@ export const AddProductModal: React.FC<AddProductModalProps> = ({
     if (!savingsModalData) return;
 
     addItemToList({
-      productId: selectedProductId,
+      productId: ensureDbProduct(selectedProductId),
       storeId: savingsModalData.chosenStoreId,
       isStoreOverride: true,
       quantity: parsedQuantity,
@@ -188,7 +233,7 @@ export const AddProductModal: React.FC<AddProductModalProps> = ({
     onClose();
   };
 
-  const selectedProduct = products.find((p) => p.id === selectedProductId);
+  const selectedProduct = searchableProducts.find((p) => p.id === selectedProductId);
   const chosenStore = stores.find((s) => s.id === savingsModalData?.chosenStoreId) || null;
   const canonicalStore = stores.find((s) => s.id === savingsModalData?.canonicalStoreId) || null;
 
@@ -249,12 +294,16 @@ export const AddProductModal: React.FC<AddProductModalProps> = ({
                         }`}
                       >
                         <span>{prod.name}</span>
-                        {canonical && (
+                        {prod.isCatalog ? (
+                          <span className="text-[10px] text-indigo-700 bg-indigo-100/80 px-1.5 py-0.5 rounded-md font-medium">
+                            {prod.category}
+                          </span>
+                        ) : canonical ? (
                           <span className="text-[10px] text-emerald-700 bg-emerald-100/80 px-1.5 py-0.5 rounded-md flex items-center gap-1 font-medium">
                             <Sparkles className="w-2.5 h-2.5" />
                             {canonical.name}
                           </span>
-                        )}
+                        ) : null}
                       </button>
                     );
                   })}
