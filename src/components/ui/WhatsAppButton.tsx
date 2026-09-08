@@ -527,7 +527,7 @@ export const WhatsAppButton: React.FC<{ listName?: string }> = ({ listName }) =>
     <>
       <button
         onClick={handleClick}
-        className="fixed bottom-20 right-4 z-30 flex items-center gap-2 bg-[#25D366] hover:bg-[#20bd5a] text-white px-4 py-3 rounded-full shadow-lg hover:shadow-xl active:scale-95 transition-all duration-200 border-2 border-white/50"
+        className="fixed bottom-24 right-4 z-30 flex items-center gap-2 bg-[#25D366] hover:bg-[#20bd5a] text-white px-4 py-3 rounded-full shadow-lg hover:shadow-xl active:scale-95 transition-all duration-200 border-2 border-white/50"
         title="Enviar mandado por WhatsApp"
         aria-label="Compartir en WhatsApp"
       >

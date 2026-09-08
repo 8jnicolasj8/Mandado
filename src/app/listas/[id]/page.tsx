@@ -241,7 +241,7 @@ export default function SingleListPage() {
       )}
 
       {/* Floating Add Product Button */}
-      <div className="fixed bottom-20 left-4 z-30">
+      <div className="fixed bottom-24 left-4 z-30">
         <button
           onClick={() => handleOpenAddForStore()}
           className="flex items-center gap-2 bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-3 rounded-full shadow-lg hover:shadow-xl active:scale-95 transition-all duration-200 border-2 border-white/50"
