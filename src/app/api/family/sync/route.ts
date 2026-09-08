@@ -12,13 +12,13 @@ const DEFAULT_STORES_DATA = [
   { name: 'Carnicería Los Charitos', category: 'carniceria', address: 'General Pinto, Buenos Aires', lat: -34.7658000, lng: -61.8942000 },
 ];
 
-const DEFAULT_PRODUCTS_DATA = [
-  { name: 'Dulce de Leche 400g' },
-  { name: 'Shampoo Nutritivo 400ml' },
-  { name: 'Tira de asado' },
-  { name: 'Suprema de pollo' },
-  { name: 'Manzana roja' },
-  { name: 'Banana' },
+const LEGACY_SEED_PRODUCTS = [
+  'Dulce de Leche 400g',
+  'Shampoo Nutritivo 400ml',
+  'Tira de asado',
+  'Suprema de pollo',
+  'Manzana roja',
+  'Banana',
 ];
 
 export async function POST(request: NextRequest) {
@@ -115,12 +115,28 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  // 3. Ensure initial products exist for this family
-  const { data: existingProducts } = await admin.from('products').select('*').eq('family_id', familyId);
-  if (!existingProducts || existingProducts.length === 0) {
-    await admin.from('products').insert(
-      DEFAULT_PRODUCTS_DATA.map((p) => ({ ...p, family_id: familyId }))
-    );
+  // 3. Remove legacy seed/mock products (they now live in the hardcoded
+  // catalog). Only delete rows that aren't referenced by lists or prices.
+  const { data: legacyProducts } = await admin
+    .from('products')
+    .select('id')
+    .eq('family_id', familyId)
+    .in('name', LEGACY_SEED_PRODUCTS);
+
+  if (legacyProducts && legacyProducts.length > 0) {
+    const legacyIds = legacyProducts.map((p) => p.id);
+    const [{ data: itemRefs }, { data: priceRefs }] = await Promise.all([
+      admin.from('list_items').select('product_id').in('product_id', legacyIds),
+      admin.from('price_history').select('product_id').in('product_id', legacyIds),
+    ]);
+    const referenced = new Set<string>([
+      ...(itemRefs || []).map((r) => r.product_id),
+      ...(priceRefs || []).map((r) => r.product_id),
+    ]);
+    const toDelete = legacyIds.filter((id) => !referenced.has(id));
+    if (toDelete.length > 0) {
+      await admin.from('products').delete().eq('family_id', familyId).in('id', toDelete);
+    }
   }
 
   // 4. Ensure default list exists

@@ -72,50 +72,7 @@ export const DEFAULT_STORES: Store[] = [
   },
 ];
 
-export const DEFAULT_PRODUCTS: Product[] = [
-  {
-    id: 'prod-ddl',
-    family_id: 'fam-default-001',
-    name: 'Dulce de Leche 400g',
-    canonical_store_id: null,
-    created_at: new Date().toISOString(),
-  },
-  {
-    id: 'prod-shampoo',
-    family_id: 'fam-default-001',
-    name: 'Shampoo Nutritivo 400ml',
-    canonical_store_id: null,
-    created_at: new Date().toISOString(),
-  },
-  {
-    id: 'prod-asado',
-    family_id: 'fam-default-001',
-    name: 'Tira de asado',
-    canonical_store_id: null,
-    created_at: new Date().toISOString(),
-  },
-  {
-    id: 'prod-pollo',
-    family_id: 'fam-default-001',
-    name: 'Suprema de pollo',
-    canonical_store_id: null,
-    created_at: new Date().toISOString(),
-  },
-  {
-    id: 'prod-manzana',
-    family_id: 'fam-default-001',
-    name: 'Manzana roja',
-    canonical_store_id: null,
-    created_at: new Date().toISOString(),
-  },
-  {
-    id: 'prod-banana',
-    family_id: 'fam-default-001',
-    name: 'Banana',
-    canonical_store_id: null,
-    created_at: new Date().toISOString(),
-  },
-];
+export const DEFAULT_PRODUCTS: Product[] = [];
 
 export const DEFAULT_PRICE_HISTORY: PriceHistory[] = [];
 
