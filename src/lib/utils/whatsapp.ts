@@ -92,12 +92,20 @@ export const generateWhatsAppShoppingListText = (options: WhatsAppExportOptions)
   // Filter out checked items if requested
   let itemsToExport = includeChecked ? items : items.filter((i) => !i.checked);
 
+  // If all items are checked or active is empty, fall back to all items so the message is never blank
+  if (itemsToExport.length === 0 && items.length > 0) {
+    itemsToExport = items;
+  }
+
   // Filter by selected stores if specified
   if (selectedStoreIds && selectedStoreIds.length > 0) {
-    itemsToExport = itemsToExport.filter((i) => {
+    const filtered = itemsToExport.filter((i) => {
       const storeId = i.store?.id || 'sin-tienda';
       return selectedStoreIds.includes(storeId);
     });
+    if (filtered.length > 0) {
+      itemsToExport = filtered;
+    }
   }
 
   const today = new Date();
@@ -201,7 +209,7 @@ export const createWhatsAppUrl = (messageText: string, phone?: string | null): s
       return `https://api.whatsapp.com/send/?phone=${cleanPhone}&text=${encodedText}`;
     }
   }
-  return `https://wa.me/?text=${encodedText}`;
+  return `https://web.whatsapp.com/send?text=${encodedText}`;
 };
 
 export const createWhatsAppDeepLink = (messageText: string, phone?: string | null): string => {

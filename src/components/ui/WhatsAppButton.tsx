@@ -55,14 +55,17 @@ export const WhatsAppSendModal: React.FC<WhatsAppSendModalProps> = ({
     }
   }, []);
 
-  // Active (uncompleted) items
-  const activeItems = useMemo(() => listItems.filter((item) => !item.checked), [listItems]);
+  // Items to use: active uncompleted items, or if all completed, use all items in list
+  const itemsToUse = useMemo(() => {
+    const active = listItems.filter((item) => !item.checked);
+    return active.length > 0 ? active : listItems;
+  }, [listItems]);
 
-  // Unique stores present in active items
+  // Unique stores present in list items
   const storesInList = useMemo(() => {
     const map = new Map<string, { id: string; name: string; category: string; count: number }>();
 
-    activeItems.forEach((item) => {
+    itemsToUse.forEach((item) => {
       const storeId = item.store?.id || 'sin-tienda';
       const storeName = item.store?.name || 'Otras tiendas';
       const category = item.store?.category || 'otro';
@@ -74,7 +77,7 @@ export const WhatsAppSendModal: React.FC<WhatsAppSendModalProps> = ({
     });
 
     return Array.from(map.values());
-  }, [activeItems]);
+  }, [itemsToUse]);
 
   // Selected store IDs for export (multi-select)
   const [selectedStoreIds, setSelectedStoreIds] = useState<string[]>([]);
@@ -84,17 +87,22 @@ export const WhatsAppSendModal: React.FC<WhatsAppSendModalProps> = ({
       if (initialSelectedStoreId) {
         setSelectedStoreIds([initialSelectedStoreId]);
       } else {
-        // Default: select all stores
         setSelectedStoreIds(storesInList.map((s) => s.id));
       }
     }
   }, [isOpen, initialSelectedStoreId, storesInList]);
 
+  // Effective stores: fallback to all stores if none explicitly checked
+  const effectiveStoreIds = useMemo(() => {
+    if (selectedStoreIds.length > 0) return selectedStoreIds;
+    return storesInList.map((s) => s.id);
+  }, [selectedStoreIds, storesInList]);
+
   if (!isOpen) {
     return null;
   }
 
-  if (activeItems.length === 0) {
+  if (itemsToUse.length === 0) {
     return (
       <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-end sm:items-center justify-center p-4 animate-in fade-in duration-200">
         <div className="bg-white w-full max-w-sm rounded-3xl p-6 shadow-2xl border border-gray-200 relative animate-in slide-in-from-bottom-4 duration-200 text-center space-y-4">
@@ -132,31 +140,31 @@ export const WhatsAppSendModal: React.FC<WhatsAppSendModalProps> = ({
     setSelectedStoreIds([]);
   };
 
-  // Compute effective list name (e.g. if only 1 store is selected, use that store name)
+  // Compute effective list name
   const effectiveListName = useMemo(() => {
-    if (selectedStoreIds.length === 1) {
-      const singleStore = storesInList.find((s) => s.id === selectedStoreIds[0]);
+    if (effectiveStoreIds.length === 1 && storesInList.length > 1) {
+      const singleStore = storesInList.find((s) => s.id === effectiveStoreIds[0]);
       if (singleStore) {
         return `Lista: ${singleStore.name}`;
       }
     }
     return listName || currentList?.name || 'Mandado';
-  }, [selectedStoreIds, storesInList, listName, currentList?.name]);
+  }, [effectiveStoreIds, storesInList, listName, currentList?.name]);
 
-  // Generate customized text for the chosen stores
+  // Generate customized text for chosen stores
   const generatedText = generateWhatsAppShoppingListText({
     listName: effectiveListName,
-    items: activeItems,
-    includeChecked: false,
-    selectedStoreIds,
+    items: itemsToUse,
+    includeChecked: true,
+    selectedStoreIds: effectiveStoreIds,
   });
 
-  const selectedItemCount = activeItems.filter((item) =>
-    selectedStoreIds.includes(item.store?.id || 'sin-tienda')
+  const selectedItemCount = itemsToUse.filter((item) =>
+    effectiveStoreIds.includes(item.store?.id || 'sin-tienda')
   ).length;
 
   const handleSendToPhone = (phone?: string | null) => {
-    if (selectedStoreIds.length === 0 || !phone || !phone.trim()) return;
+    if (!phone || !phone.trim()) return;
 
     // Save to recent
     const clean = phone.trim();
@@ -168,19 +176,16 @@ export const WhatsAppSendModal: React.FC<WhatsAppSendModalProps> = ({
       return next;
     });
 
-    const url = createWhatsAppUrl(generatedText, phone);
     const isMobile = typeof navigator !== 'undefined' && /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
     if (isMobile) {
-      window.location.href = url;
+      window.location.href = createWhatsAppDeepLink(generatedText, phone);
     } else {
-      window.open(url, '_blank', 'noopener,noreferrer');
+      window.open(createWhatsAppWebUrl(generatedText, phone), '_blank', 'noopener,noreferrer');
     }
     onClose();
   };
 
   const handleSendGeneral = async () => {
-    if (selectedStoreIds.length === 0) return;
-
     const isMobile = typeof navigator !== 'undefined' && /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
 
     if (typeof navigator !== 'undefined' && navigator.share) {
@@ -195,17 +200,14 @@ export const WhatsAppSendModal: React.FC<WhatsAppSendModalProps> = ({
     }
 
     if (isMobile) {
-      // In mobile, deep link opens WhatsApp app directly with contact/group picker
       window.location.href = createWhatsAppDeepLink(generatedText);
     } else {
-      // In desktop, open WhatsApp Web with prefilled message
       window.open(createWhatsAppWebUrl(generatedText), '_blank', 'noopener,noreferrer');
     }
     onClose();
   };
 
   const handleCopyText = async () => {
-    if (selectedStoreIds.length === 0) return;
     try {
       await navigator.clipboard.writeText(generatedText);
       setCopied(true);
@@ -319,9 +321,9 @@ export const WhatsAppSendModal: React.FC<WhatsAppSendModalProps> = ({
                   <button
                     key={member.id}
                     onClick={() => handleSendToPhone(member.phone)}
-                    disabled={!hasPhone || selectedStoreIds.length === 0}
+                    disabled={!hasPhone}
                     className={`w-full p-2.5 rounded-2xl border text-left flex items-center justify-between transition-all ${
-                      hasPhone && selectedStoreIds.length > 0
+                      hasPhone
                         ? 'bg-gray-50/80 hover:bg-emerald-50/70 border-gray-200/90 hover:border-emerald-300 active:scale-[0.99]'
                         : 'bg-gray-50/40 border-gray-100 opacity-50 cursor-not-allowed'
                     }`}
@@ -384,7 +386,7 @@ export const WhatsAppSendModal: React.FC<WhatsAppSendModalProps> = ({
                 <button
                   type="button"
                   onClick={() => handleSendToPhone(customPhone)}
-                  disabled={!customPhone.trim() || selectedStoreIds.length === 0}
+                  disabled={!customPhone.trim()}
                   className="px-3.5 py-2 bg-emerald-600 hover:bg-emerald-700 active:scale-95 disabled:opacity-40 disabled:pointer-events-none text-white text-xs font-bold rounded-xl flex items-center gap-1 shrink-0 shadow-xs transition-all"
                 >
                   <Send className="w-3.5 h-3.5" />
@@ -413,8 +415,7 @@ export const WhatsAppSendModal: React.FC<WhatsAppSendModalProps> = ({
             <div className="pt-2.5 flex flex-col gap-2">
               <button
                 onClick={handleSendGeneral}
-                disabled={selectedStoreIds.length === 0}
-                className="w-full py-2.5 px-3 bg-[#25D366] hover:bg-[#20bd5a] disabled:opacity-40 disabled:pointer-events-none active:scale-[0.98] text-white text-xs font-bold rounded-xl shadow-xs flex items-center justify-center gap-2 transition-all"
+                className="w-full py-2.5 px-3 bg-[#25D366] hover:bg-[#20bd5a] active:scale-[0.98] text-white text-xs font-bold rounded-xl shadow-xs flex items-center justify-center gap-2 transition-all"
               >
                 <Share2 className="w-4 h-4" />
                 Elegir otro chat o grupo de WhatsApp
@@ -423,7 +424,6 @@ export const WhatsAppSendModal: React.FC<WhatsAppSendModalProps> = ({
               <button
                 type="button"
                 onClick={handleCopyText}
-                disabled={selectedStoreIds.length === 0}
                 className="w-full py-2 px-3 bg-gray-100 hover:bg-gray-200 text-gray-700 active:scale-[0.98] text-xs font-semibold rounded-xl flex items-center justify-center gap-2 transition-all border border-gray-200"
               >
                 {copied ? (
