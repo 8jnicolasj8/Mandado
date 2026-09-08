@@ -464,15 +464,52 @@ export const WhatsAppSendModal: React.FC<WhatsAppSendModalProps> = ({
 };
 
 export const WhatsAppButton: React.FC<{ listName?: string }> = ({ listName }) => {
-  const { listItems } = useApp();
-  const [isOpen, setIsOpen] = useState(false);
+  const { listItems, currentList } = useApp();
+  const [toastMessage, setToastMessage] = useState<string | null>(null);
 
   const activeItems = listItems.filter((item) => !item.checked);
+  const itemsToExport = activeItems.length > 0 ? activeItems : listItems;
+
+  const handleClick = async () => {
+    const effectiveName = listName || currentList?.name || 'Mandado';
+    const listaTexto = generateWhatsAppShoppingListText({
+      listName: effectiveName,
+      items: itemsToExport,
+      includeChecked: false,
+    });
+
+    // 2a. Si navigator.share está disponible (mobile/PWA):
+    if (typeof navigator !== 'undefined' && navigator.share) {
+      try {
+        await navigator.share({ text: listaTexto });
+      } catch (err: any) {
+        // 4. Manejar el caso en que navigator.share esté disponible pero el usuario cancele el share dialog (catch AbortError)
+        if (err?.name === 'AbortError') {
+          return;
+        }
+        // Fallback en caso de otro fallo
+        try {
+          await navigator.clipboard.writeText(listaTexto);
+          setToastMessage('Lista copiada. Pegala en WhatsApp 📋');
+          setTimeout(() => setToastMessage(null), 3000);
+        } catch (_) {}
+      }
+    } else if (typeof navigator !== 'undefined' && navigator.clipboard) {
+      // 2b. Si navigator.share NO está disponible (desktop):
+      try {
+        await navigator.clipboard.writeText(listaTexto);
+        setToastMessage('Lista copiada. Pegala en WhatsApp 📋');
+        setTimeout(() => setToastMessage(null), 3000);
+      } catch (err) {
+        console.error('Failed to copy to clipboard', err);
+      }
+    }
+  };
 
   return (
     <>
       <button
-        onClick={() => setIsOpen(true)}
+        onClick={handleClick}
         className="fixed bottom-20 right-4 z-30 flex items-center gap-2 bg-[#25D366] hover:bg-[#20bd5a] text-white px-4 py-3 rounded-full shadow-lg hover:shadow-xl active:scale-95 transition-all duration-200 border-2 border-white/50"
         title="Enviar mandado por WhatsApp"
         aria-label="Compartir en WhatsApp"
@@ -494,11 +531,14 @@ export const WhatsAppButton: React.FC<{ listName?: string }> = ({ listName }) =>
         )}
       </button>
 
-      <WhatsAppSendModal
-        isOpen={isOpen}
-        onClose={() => setIsOpen(false)}
-        listName={listName}
-      />
+      {/* Toast / Snackbar */}
+      {toastMessage && (
+        <div className="fixed bottom-36 right-4 z-50 animate-in fade-in slide-in-from-bottom-2 duration-200 pointer-events-none">
+          <div className="bg-gray-900/95 text-white px-4 py-3 rounded-2xl shadow-2xl flex items-center gap-2.5 text-xs font-semibold backdrop-blur-xs border border-white/10">
+            <span>{toastMessage}</span>
+          </div>
+        </div>
+      )}
     </>
   );
 };
