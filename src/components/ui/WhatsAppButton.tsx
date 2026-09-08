@@ -13,11 +13,14 @@ import {
   Sparkles,
   Copy,
   Check,
+  Phone,
 } from 'lucide-react';
 import { useApp } from '@/lib/context/AppContext';
 import {
   generateWhatsAppShoppingListText,
   createWhatsAppUrl,
+  createWhatsAppDeepLink,
+  createWhatsAppWebUrl,
   getCategoryEmoji,
 } from '@/lib/utils/whatsapp';
 
@@ -37,6 +40,20 @@ export const WhatsAppSendModal: React.FC<WhatsAppSendModalProps> = ({
   const { listItems, currentList, familyMembers, currentProfile, stores } = useApp();
   const [showPreview, setShowPreview] = useState(false);
   const [copied, setCopied] = useState(false);
+  const [customPhone, setCustomPhone] = useState('');
+  const [recentPhones, setRecentPhones] = useState<string[]>([]);
+
+  // Load recent phone numbers from storage
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      try {
+        const saved = localStorage.getItem('mandado_recent_phones');
+        if (saved) {
+          setRecentPhones(JSON.parse(saved));
+        }
+      } catch (_) {}
+    }
+  }, []);
 
   // Active (uncompleted) items
   const activeItems = useMemo(() => listItems.filter((item) => !item.checked), [listItems]);
@@ -72,13 +89,6 @@ export const WhatsAppSendModal: React.FC<WhatsAppSendModalProps> = ({
       }
     }
   }, [isOpen, initialSelectedStoreId, storesInList]);
-
-  const openWhatsAppUrl = (url: string) => {
-    const win = window.open(url, '_blank');
-    if (!win || win.closed || typeof win.closed === 'undefined') {
-      window.location.href = url;
-    }
-  };
 
   if (!isOpen) {
     return null;
@@ -145,15 +155,33 @@ export const WhatsAppSendModal: React.FC<WhatsAppSendModalProps> = ({
     selectedStoreIds.includes(item.store?.id || 'sin-tienda')
   ).length;
 
-  const handleSendToMember = (phone?: string | null) => {
-    if (selectedStoreIds.length === 0) return;
+  const handleSendToPhone = (phone?: string | null) => {
+    if (selectedStoreIds.length === 0 || !phone || !phone.trim()) return;
+
+    // Save to recent
+    const clean = phone.trim();
+    setRecentPhones((prev) => {
+      const next = [clean, ...prev.filter((p) => p !== clean)].slice(0, 4);
+      if (typeof window !== 'undefined') {
+        localStorage.setItem('mandado_recent_phones', JSON.stringify(next));
+      }
+      return next;
+    });
+
     const url = createWhatsAppUrl(generatedText, phone);
-    openWhatsAppUrl(url);
+    const isMobile = typeof navigator !== 'undefined' && /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
+    if (isMobile) {
+      window.location.href = url;
+    } else {
+      window.open(url, '_blank', 'noopener,noreferrer');
+    }
     onClose();
   };
 
   const handleSendGeneral = async () => {
     if (selectedStoreIds.length === 0) return;
+
+    const isMobile = typeof navigator !== 'undefined' && /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
 
     if (typeof navigator !== 'undefined' && navigator.share) {
       try {
@@ -166,8 +194,13 @@ export const WhatsAppSendModal: React.FC<WhatsAppSendModalProps> = ({
       } catch (_) {}
     }
 
-    const url = createWhatsAppUrl(generatedText);
-    openWhatsAppUrl(url);
+    if (isMobile) {
+      // In mobile, deep link opens WhatsApp app directly with contact/group picker
+      window.location.href = createWhatsAppDeepLink(generatedText);
+    } else {
+      // In desktop, open WhatsApp Web with prefilled message
+      window.open(createWhatsAppWebUrl(generatedText), '_blank', 'noopener,noreferrer');
+    }
     onClose();
   };
 
@@ -277,7 +310,7 @@ export const WhatsAppSendModal: React.FC<WhatsAppSendModalProps> = ({
               2. ¿A quién se lo pasas por WhatsApp?
             </p>
 
-            <div className="space-y-1.5 max-h-48 overflow-y-auto">
+            <div className="space-y-1.5 max-h-40 overflow-y-auto">
               {familyMembers.map((member) => {
                 const isMe = member.id === currentProfile.id;
                 const hasPhone = Boolean(member.phone);
@@ -285,7 +318,7 @@ export const WhatsAppSendModal: React.FC<WhatsAppSendModalProps> = ({
                 return (
                   <button
                     key={member.id}
-                    onClick={() => handleSendToMember(member.phone)}
+                    onClick={() => handleSendToPhone(member.phone)}
                     disabled={!hasPhone || selectedStoreIds.length === 0}
                     className={`w-full p-2.5 rounded-2xl border text-left flex items-center justify-between transition-all ${
                       hasPhone && selectedStoreIds.length > 0
@@ -328,8 +361,56 @@ export const WhatsAppSendModal: React.FC<WhatsAppSendModalProps> = ({
               })}
             </div>
 
+            {/* Direct Phone Number Input */}
+            <div className="mt-2.5 p-3 rounded-2xl bg-emerald-50/70 border border-emerald-200/80">
+              <label className="text-[11px] font-bold text-emerald-900 flex items-center gap-1.5 mb-1.5">
+                <Phone className="w-3.5 h-3.5 text-emerald-600" />
+                Mandar directo a un celular / WhatsApp:
+              </label>
+              <div className="flex gap-1.5">
+                <input
+                  type="tel"
+                  placeholder="Ej: 2355 442142"
+                  value={customPhone}
+                  onChange={(e) => setCustomPhone(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                      e.preventDefault();
+                      handleSendToPhone(customPhone);
+                    }
+                  }}
+                  className="flex-1 px-3 py-2 text-xs rounded-xl border border-emerald-300 bg-white text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-emerald-500 shadow-2xs font-mono"
+                />
+                <button
+                  type="button"
+                  onClick={() => handleSendToPhone(customPhone)}
+                  disabled={!customPhone.trim() || selectedStoreIds.length === 0}
+                  className="px-3.5 py-2 bg-emerald-600 hover:bg-emerald-700 active:scale-95 disabled:opacity-40 disabled:pointer-events-none text-white text-xs font-bold rounded-xl flex items-center gap-1 shrink-0 shadow-xs transition-all"
+                >
+                  <Send className="w-3.5 h-3.5" />
+                  Enviar
+                </button>
+              </div>
+
+              {recentPhones.length > 0 && (
+                <div className="mt-2 flex items-center gap-1.5 flex-wrap">
+                  <span className="text-[10px] text-emerald-800/80 font-medium">Recientes:</span>
+                  {recentPhones.map((p) => (
+                    <button
+                      key={p}
+                      type="button"
+                      onClick={() => handleSendToPhone(p)}
+                      className="text-[10px] font-mono px-2 py-0.5 rounded-lg bg-white border border-emerald-200 text-emerald-800 hover:bg-emerald-100/70 transition-all"
+                    >
+                      {p}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+
             {/* General WhatsApp Share Option & Copy Button */}
-            <div className="pt-2 flex flex-col gap-2">
+            <div className="pt-2.5 flex flex-col gap-2">
               <button
                 onClick={handleSendGeneral}
                 disabled={selectedStoreIds.length === 0}

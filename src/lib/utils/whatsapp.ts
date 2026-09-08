@@ -143,18 +143,18 @@ export const generateWhatsAppShoppingListText = (options: WhatsAppExportOptions)
       let itemLine = '';
       if (unit === 'kg' || unit === 'kilos' || unit === 'kilo') {
         const qtyFormatted = qty === 0.5 ? '0.5kg (½ kg)' : `${qty}kg`;
-        itemLine = `• ${productName} ${qtyFormatted}`;
+        itemLine = `- ${productName} ${qtyFormatted}`;
       } else if (unit === 'g' || unit === 'gramos' || unit === 'gr') {
-        itemLine = `• ${productName} ${qty}g`;
+        itemLine = `- ${productName} ${qty}g`;
       } else if (unit === 'litro' || unit === 'litros' || unit === 'l') {
-        itemLine = `• ${productName} ${qty}L`;
+        itemLine = `- ${productName} ${qty}L`;
       } else if (unit === 'atado' || unit === 'atados') {
-        itemLine = `• ${productName} x${qty} atado${qty > 1 ? 's' : ''}`;
+        itemLine = `- ${productName} x${qty} atado${qty > 1 ? 's' : ''}`;
       } else if (unit && unit !== 'unidad' && unit !== 'unidades' && unit !== 'u') {
-        itemLine = `• ${productName} x${qty} ${unit}`;
+        itemLine = `- ${productName} x${qty} ${unit}`;
       } else {
         // Frutas, verduras o mercadería por unidades (ej: 5 bananas)
-        itemLine = qty > 1 ? `• ${productName} x${qty}` : `• ${productName}`;
+        itemLine = qty > 1 ? `- ${productName} x${qty}` : `- ${productName}`;
       }
 
       message += `${itemLine}\n`;
@@ -198,10 +198,30 @@ export const createWhatsAppUrl = (messageText: string, phone?: string | null): s
   if (phone) {
     const cleanPhone = normalizePhoneForWhatsApp(phone);
     if (cleanPhone) {
-      // NOTE: Using api.whatsapp.com directly prevents the wa.me 302 redirect bug
-      // that replaces 4-byte UTF-8 emoji characters with %EF%BF%BD ()
       return `https://api.whatsapp.com/send/?phone=${cleanPhone}&text=${encodedText}`;
     }
   }
-  return `https://api.whatsapp.com/send/?text=${encodedText}`;
+  return `https://wa.me/?text=${encodedText}`;
+};
+
+export const createWhatsAppDeepLink = (messageText: string, phone?: string | null): string => {
+  const encodedText = encodeURIComponent(messageText);
+  if (phone) {
+    const cleanPhone = normalizePhoneForWhatsApp(phone);
+    if (cleanPhone) {
+      return `whatsapp://send?phone=${cleanPhone}&text=${encodedText}`;
+    }
+  }
+  return `whatsapp://send?text=${encodedText}`;
+};
+
+export const createWhatsAppWebUrl = (messageText: string, phone?: string | null): string => {
+  const encodedText = encodeURIComponent(messageText);
+  if (phone) {
+    const cleanPhone = normalizePhoneForWhatsApp(phone);
+    if (cleanPhone) {
+      return `https://web.whatsapp.com/send?phone=${cleanPhone}&text=${encodedText}`;
+    }
+  }
+  return `https://web.whatsapp.com/send?text=${encodedText}`;
 };

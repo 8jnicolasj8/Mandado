@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
 import {
   User,
@@ -18,7 +18,7 @@ import {
   ExternalLink,
 } from 'lucide-react';
 import { useApp } from '@/lib/context/AppContext';
-import { createWhatsAppUrl } from '@/lib/utils/whatsapp';
+import { createWhatsAppUrl, createWhatsAppDeepLink, createWhatsAppWebUrl } from '@/lib/utils/whatsapp';
 import { createClient, isSupabaseConfigured } from '@/lib/supabase/client';
 
 export default function PerfilPage() {
@@ -35,8 +35,15 @@ export default function PerfilPage() {
 
   // Phone editing state
   const [isEditingPhone, setIsEditingPhone] = useState(false);
-  const [phoneInput, setPhoneInput] = useState(currentProfile.phone || '');
+  const [phoneInput, setPhoneInput] = useState('');
   const [phoneSaved, setPhoneSaved] = useState(false);
+
+  // Sync phone input when profile is loaded
+  useEffect(() => {
+    if (currentProfile.phone) {
+      setPhoneInput(currentProfile.phone);
+    }
+  }, [currentProfile.phone]);
 
   // Invite code is based on family.invite_code
   const familyInviteCode = family?.invite_code || 'MANDADO-7X9K2W';
@@ -54,6 +61,8 @@ export default function PerfilPage() {
   const handleShareWhatsApp = async () => {
     const message = `¡Hola! 👋 Te invito a unirte a nuestra lista de compras familiar en Mandado 🛒.\n\nCódigo de nuestra familia:\n👉 *${familyInviteCode}*\n\nIngresa este código al registrarte en la app.`;
 
+    const isMobile = typeof navigator !== 'undefined' && /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
+
     if (typeof navigator !== 'undefined' && navigator.share) {
       try {
         await navigator.share({
@@ -64,10 +73,10 @@ export default function PerfilPage() {
       } catch (_) {}
     }
 
-    const url = createWhatsAppUrl(message);
-    const win = window.open(url, '_blank');
-    if (!win || win.closed || typeof win.closed === 'undefined') {
-      window.location.href = url;
+    if (isMobile) {
+      window.location.href = createWhatsAppDeepLink(message);
+    } else {
+      window.open(createWhatsAppWebUrl(message), '_blank', 'noopener,noreferrer');
     }
   };
 
