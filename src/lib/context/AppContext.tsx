@@ -65,12 +65,25 @@ export const AppProvider = ({ children }: { children: React.ReactNode }) => {
 
   // Core state
   const [family, setFamily] = useState<Family>(DEFAULT_FAMILY);
-  const [currentProfile, setCurrentProfile] = useState<Profile>({
-    id: 'user-main',
-    family_id: DEFAULT_FAMILY.id,
-    display_name: 'Mi Usuario',
-    avatar_color: '#16A34A',
-    created_at: new Date().toISOString()
+  const [currentProfile, setCurrentProfile] = useState<Profile>(() => {
+    if (typeof window !== 'undefined') {
+      try {
+        const saved = localStorage.getItem('mandado_profile');
+        if (saved) {
+          const parsed = JSON.parse(saved);
+          if (parsed && parsed.display_name && parsed.display_name !== 'Mi Usuario') {
+            return parsed;
+          }
+        }
+      } catch (_) {}
+    }
+    return {
+      id: 'user-main',
+      family_id: DEFAULT_FAMILY.id,
+      display_name: '',
+      avatar_color: '#16A34A',
+      created_at: new Date().toISOString()
+    };
   });
   const [familyMembers, setFamilyMembers] = useState<Profile[]>([]);
   const [stores, setStores] = useState<Store[]>(DEFAULT_STORES);
@@ -88,17 +101,9 @@ export const AppProvider = ({ children }: { children: React.ReactNode }) => {
     setIsDemo(!hasSupabase);
 
     try {
-      // Version check to clean up old demo data and accounts
       const currentV = localStorage.getItem('mandado_version');
-      if (currentV !== '3.0') {
-        localStorage.removeItem('mandado_stores');
-        localStorage.removeItem('mandado_products');
-        localStorage.removeItem('mandado_price_history');
-        localStorage.removeItem('mandado_raw_items');
-        localStorage.removeItem('mandado_lists');
-        localStorage.removeItem('mandado_profile');
-        localStorage.removeItem('mandado_family_members');
-        localStorage.setItem('mandado_version', '3.0');
+      if (currentV !== '3.1') {
+        localStorage.setItem('mandado_version', '3.1');
       }
 
       const savedStores = localStorage.getItem('mandado_stores');
@@ -120,12 +125,118 @@ export const AppProvider = ({ children }: { children: React.ReactNode }) => {
       if (savedItems) setRawItems(JSON.parse(savedItems));
 
       const savedProfile = localStorage.getItem('mandado_profile');
-      if (savedProfile) setCurrentProfile(JSON.parse(savedProfile));
+      if (savedProfile) {
+        const parsed = JSON.parse(savedProfile);
+        if (parsed.display_name && parsed.display_name !== 'Mi Usuario') {
+          setCurrentProfile(parsed);
+        }
+      }
+
+      const savedFamilyName = localStorage.getItem('mandado_family_name');
+      if (savedFamilyName) {
+        setFamily((prev) => ({ ...prev, name: savedFamilyName }));
+      }
 
       const savedMembers = localStorage.getItem('mandado_family_members');
       if (savedMembers) setFamilyMembers(JSON.parse(savedMembers));
     } catch (e) {
       console.error('Error loading stored data', e);
+    }
+
+    if (hasSupabase) {
+      const supabase = createClient();
+
+      const syncAuthUser = async () => {
+        try {
+          const { data: { user } } = await supabase.auth.getUser();
+          const pathname = window.location.pathname;
+          const isAuthRoute = pathname.startsWith('/login') || pathname.startsWith('/register');
+
+          if (!user) {
+            if (!isAuthRoute) {
+              window.location.href = '/login';
+            }
+            return;
+          }
+
+          const meta = user.user_metadata || {};
+          const displayName = meta.display_name || user.email?.split('@')[0] || 'Mi Perfil';
+          const avatarColor = meta.avatar_color || '#16A34A';
+          const phone = meta.phone || null;
+
+          const updatedProfile: Profile = {
+            id: user.id,
+            family_id: DEFAULT_FAMILY.id,
+            display_name: displayName,
+            avatar_color: avatarColor,
+            phone: phone,
+            created_at: user.created_at || new Date().toISOString(),
+          };
+
+          setCurrentProfile(updatedProfile);
+          localStorage.setItem('mandado_profile', JSON.stringify(updatedProfile));
+
+          if (meta.family_name) {
+            setFamily((prev) => ({ ...prev, name: meta.family_name }));
+            localStorage.setItem('mandado_family_name', meta.family_name);
+          }
+
+          setFamilyMembers((prev) => {
+            if (prev.length === 0 || !prev.some((m) => m.id === user.id)) {
+              return [updatedProfile];
+            }
+            return prev.map((m) => (m.id === user.id ? updatedProfile : m));
+          });
+        } catch (err) {
+          console.error('Error syncing Supabase auth user', err);
+        }
+      };
+
+      syncAuthUser();
+
+      const { data: authListener } = supabase.auth.onAuthStateChange((event, session) => {
+        if (session?.user) {
+          const user = session.user;
+          const meta = user.user_metadata || {};
+          const displayName = meta.display_name || user.email?.split('@')[0] || 'Mi Perfil';
+          const avatarColor = meta.avatar_color || '#16A34A';
+          const phone = meta.phone || null;
+
+          const updatedProfile: Profile = {
+            id: user.id,
+            family_id: DEFAULT_FAMILY.id,
+            display_name: displayName,
+            avatar_color: avatarColor,
+            phone: phone,
+            created_at: user.created_at || new Date().toISOString(),
+          };
+
+          setCurrentProfile(updatedProfile);
+          localStorage.setItem('mandado_profile', JSON.stringify(updatedProfile));
+
+          if (meta.family_name) {
+            setFamily((prev) => ({ ...prev, name: meta.family_name }));
+            localStorage.setItem('mandado_family_name', meta.family_name);
+          }
+
+          setFamilyMembers((prev) => {
+            if (prev.length === 0 || !prev.some((m) => m.id === user.id)) {
+              return [updatedProfile];
+            }
+            return prev.map((m) => (m.id === user.id ? updatedProfile : m));
+          });
+        } else if (event === 'SIGNED_OUT') {
+          localStorage.removeItem('mandado_profile');
+          const pathname = window.location.pathname;
+          if (!pathname.startsWith('/login') && !pathname.startsWith('/register')) {
+            window.location.href = '/login';
+          }
+        }
+      });
+
+      return () => {
+        authListener.subscription.unsubscribe();
+      };
     }
   }, []);
 
@@ -138,7 +249,9 @@ export const AppProvider = ({ children }: { children: React.ReactNode }) => {
       localStorage.setItem('mandado_price_history', JSON.stringify(priceHistory));
       localStorage.setItem('mandado_lists', JSON.stringify(lists));
       localStorage.setItem('mandado_raw_items', JSON.stringify(rawItems));
-      localStorage.setItem('mandado_profile', JSON.stringify(currentProfile));
+      if (currentProfile.display_name && currentProfile.display_name !== 'Mi Usuario') {
+        localStorage.setItem('mandado_profile', JSON.stringify(currentProfile));
+      }
       localStorage.setItem('mandado_family_members', JSON.stringify(familyMembers));
     } catch (e) {
       console.error('Error saving data', e);
@@ -410,10 +523,23 @@ export const AppProvider = ({ children }: { children: React.ReactNode }) => {
   );
 
   const updateProfilePhone = useCallback((phone: string) => {
-    setCurrentProfile((prev) => ({ ...prev, phone }));
+    setCurrentProfile((prev) => {
+      const updated = { ...prev, phone };
+      if (typeof window !== 'undefined') {
+        localStorage.setItem('mandado_profile', JSON.stringify(updated));
+      }
+      return updated;
+    });
     setFamilyMembers((prev) =>
       prev.map((m) => (m.id === currentProfile.id ? { ...m, phone } : m))
     );
+
+    if (isSupabaseConfigured()) {
+      const supabase = createClient();
+      supabase.auth.updateUser({
+        data: { phone },
+      }).catch(console.error);
+    }
   }, [currentProfile.id]);
 
   const value = {

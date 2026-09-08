@@ -71,12 +71,12 @@ export default function RegisterPage() {
           password,
           options: {
             data: {
-              display_name: displayName,
+              display_name: displayName.trim(),
               avatar_color: avatarColor,
               phone: phone.trim(),
               family_mode: familyMode,
-              family_name: familyMode === 'create' ? familyName : null,
-              family_code: familyMode === 'join' ? familyCode : null,
+              family_name: familyMode === 'create' ? familyName.trim() : null,
+              family_code: familyMode === 'join' ? familyCode.trim() : null,
             },
           },
         });
@@ -87,29 +87,61 @@ export default function RegisterPage() {
           return;
         }
 
-        router.push('/');
+        const profile = {
+          id: data.user?.id || `user-${Date.now()}`,
+          family_id: 'fam-default-001',
+          display_name: displayName.trim(),
+          avatar_color: avatarColor,
+          phone: phone.trim(),
+          created_at: new Date().toISOString(),
+        };
+        localStorage.setItem('mandado_profile', JSON.stringify(profile));
+        if (familyMode === 'create' && familyName.trim()) {
+          localStorage.setItem('mandado_family_name', familyName.trim());
+        }
+
+        if (data.session) {
+          window.location.href = '/';
+        } else {
+          // Attempt immediate login if auto-confirmation is enabled
+          const { error: signInErr } = await supabase.auth.signInWithPassword({
+            email,
+            password,
+          });
+          if (!signInErr) {
+            window.location.href = '/';
+          } else {
+            setLoading(false);
+            setErrorMsg('Cuenta creada con éxito. Revisa tu correo o inicia sesión.');
+            setTimeout(() => {
+              window.location.href = '/login';
+            }, 2000);
+          }
+        }
       } catch (err: any) {
         setErrorMsg(err.message || 'Error al registrarse');
         setLoading(false);
       }
     } else {
-      // Demo / Local storage mode
       try {
         const newProfile = {
           id: `user-${Date.now()}`,
           family_id: 'fam-default-001',
-          display_name: displayName,
+          display_name: displayName.trim(),
           avatar_color: avatarColor,
           phone: phone.trim(),
           created_at: new Date().toISOString(),
         };
         localStorage.setItem('mandado_profile', JSON.stringify(newProfile));
+        if (familyMode === 'create' && familyName.trim()) {
+          localStorage.setItem('mandado_family_name', familyName.trim());
+        }
       } catch (e) {
         console.error('Error saving local profile', e);
       }
 
       setTimeout(() => {
-        router.push('/');
+        window.location.href = '/';
       }, 500);
     }
   };

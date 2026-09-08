@@ -19,6 +19,7 @@ import {
 } from 'lucide-react';
 import { useApp } from '@/lib/context/AppContext';
 import { createWhatsAppUrl } from '@/lib/utils/whatsapp';
+import { createClient, isSupabaseConfigured } from '@/lib/supabase/client';
 
 export default function PerfilPage() {
   const {
@@ -110,12 +111,12 @@ export default function PerfilPage() {
             className="w-14 h-14 rounded-2xl flex items-center justify-center text-white text-xl font-black shadow-xs shrink-0"
             style={{ backgroundColor: currentProfile.avatar_color || '#16A34A' }}
           >
-            {currentProfile.display_name.charAt(0).toUpperCase()}
+            {(currentProfile.display_name || 'U').charAt(0).toUpperCase()}
           </div>
 
           <div className="flex-1 min-w-0">
             <h2 className="text-base font-extrabold text-gray-900 truncate">
-              {currentProfile.display_name}
+              {currentProfile.display_name || 'Mi Perfil'}
             </h2>
             <div className="flex items-center gap-1.5 mt-0.5">
               <span className="text-xs text-gray-500">Miembro de:</span>
@@ -240,64 +241,76 @@ export default function PerfilPage() {
       </div>
 
       {/* Family Members List with WhatsApp Direct Contact */}
-      <div className="bg-white rounded-3xl p-5 border border-gray-200 shadow-2xs space-y-3">
-        <div className="flex items-center justify-between">
-          <h2 className="text-xs font-bold text-gray-400 uppercase tracking-wider">
-            Miembros de la familia
-          </h2>
-          <span className="text-[11px] font-semibold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full">
-            {familyMembers.length} activos
-          </span>
-        </div>
+      {/* Family Members List with WhatsApp Direct Contact */}
+      {(() => {
+        const activeMembers =
+          familyMembers.length > 0
+            ? familyMembers
+            : currentProfile.display_name
+            ? [currentProfile]
+            : [];
 
-        <div className="divide-y divide-gray-100">
-          {familyMembers.map((member) => {
-            const isMe = member.id === currentProfile.id;
-            const hasPhone = Boolean(member.phone);
+        return (
+          <div className="bg-white rounded-3xl p-5 border border-gray-200 shadow-2xs space-y-3">
+            <div className="flex items-center justify-between">
+              <h2 className="text-xs font-bold text-gray-400 uppercase tracking-wider">
+                Miembros de la familia
+              </h2>
+              <span className="text-[11px] font-semibold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full">
+                {activeMembers.length} activos
+              </span>
+            </div>
 
-            return (
-              <div key={member.id} className="py-2.5 flex items-center justify-between gap-2">
-                <div className="flex items-center gap-3 min-w-0">
-                  <div
-                    className="w-8 h-8 rounded-xl flex items-center justify-center text-white text-xs font-bold shrink-0"
-                    style={{ backgroundColor: member.avatar_color || '#16A34A' }}
-                  >
-                    {member.display_name.charAt(0).toUpperCase()}
-                  </div>
-                  <div className="min-w-0">
-                    <div className="flex items-center gap-1.5">
-                      <span className="text-xs font-bold text-gray-900 truncate">
-                        {member.display_name}
-                      </span>
-                      {isMe && (
-                        <span className="text-[10px] font-bold text-gray-500 bg-gray-100 px-1.5 py-0.2 rounded-sm shrink-0">
-                          Tú
+            <div className="divide-y divide-gray-100">
+              {activeMembers.map((member) => {
+                const isMe = member.id === currentProfile.id;
+                const hasPhone = Boolean(member.phone);
+
+                return (
+                  <div key={member.id} className="py-2.5 flex items-center justify-between gap-2">
+                    <div className="flex items-center gap-3 min-w-0">
+                      <div
+                        className="w-8 h-8 rounded-xl flex items-center justify-center text-white text-xs font-bold shrink-0"
+                        style={{ backgroundColor: member.avatar_color || '#16A34A' }}
+                      >
+                        {(member.display_name || 'U').charAt(0).toUpperCase()}
+                      </div>
+                      <div className="min-w-0">
+                        <div className="flex items-center gap-1.5">
+                          <span className="text-xs font-bold text-gray-900 truncate">
+                            {member.display_name || 'Miembro'}
+                          </span>
+                          {isMe && (
+                            <span className="text-[10px] font-bold text-gray-500 bg-gray-100 px-1.5 py-0.2 rounded-sm shrink-0">
+                              Tú
+                            </span>
+                          )}
+                        </div>
+                        <span className="text-[11px] text-gray-400 font-mono block truncate">
+                          {member.phone || 'Sin celular'}
                         </span>
-                      )}
+                      </div>
                     </div>
-                    <span className="text-[11px] text-gray-400 font-mono block truncate">
-                      {member.phone || 'Sin celular'}
-                    </span>
-                  </div>
-                </div>
 
-                <div className="flex items-center gap-2 shrink-0">
-                  {hasPhone && (
-                    <button
-                      onClick={() => handleOpenMemberWhatsApp(member.phone, member.display_name)}
-                      title={`Abrir WhatsApp con ${member.display_name}`}
-                      className="p-1.5 text-[#25D366] bg-emerald-50 hover:bg-emerald-100 rounded-xl transition-colors"
-                    >
-                      <MessageCircle className="w-4 h-4" />
-                    </button>
-                  )}
-                  <div className="w-2.5 h-2.5 rounded-full bg-emerald-500" />
-                </div>
-              </div>
-            );
-          })}
-        </div>
-      </div>
+                    <div className="flex items-center gap-2 shrink-0">
+                      {hasPhone && (
+                        <button
+                          onClick={() => handleOpenMemberWhatsApp(member.phone, member.display_name)}
+                          title={`Abrir WhatsApp con ${member.display_name}`}
+                          className="p-1.5 text-[#25D366] bg-emerald-50 hover:bg-emerald-100 rounded-xl transition-colors"
+                        >
+                          <MessageCircle className="w-4 h-4" />
+                        </button>
+                      )}
+                      <div className="w-2.5 h-2.5 rounded-full bg-emerald-500" />
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        );
+      })()}
 
       {/* Device & Settings */}
       <div className="bg-white rounded-3xl p-5 border border-gray-200 shadow-2xs space-y-3">
@@ -308,7 +321,7 @@ export default function PerfilPage() {
         <div className="space-y-2 text-xs">
           <button
             onClick={handleResetCatalog}
-            className="w-full p-3 rounded-2xl bg-gray-50 hover:bg-gray-100 text-gray-700 font-semibold flex items-center justify-between transition-colors"
+            className="w-full p-3 rounded-2xl bg-gray-50 hover:bg-gray-100 text-gray-700 font-semibold flex items-center justify-between transition-colors text-left"
           >
             <div className="flex items-center gap-2.5">
               <RefreshCw className="w-4 h-4 text-gray-500" />
@@ -319,16 +332,28 @@ export default function PerfilPage() {
             )}
           </button>
 
-          <Link
-            href="/login"
-            className="w-full p-3 rounded-2xl bg-gray-50 hover:bg-red-50 text-gray-700 hover:text-red-700 font-semibold flex items-center justify-between transition-colors"
+          <button
+            type="button"
+            onClick={async () => {
+              if (isSupabaseConfigured()) {
+                try {
+                  const supabase = createClient();
+                  await supabase.auth.signOut();
+                } catch (e) {
+                  console.error(e);
+                }
+              }
+              localStorage.removeItem('mandado_profile');
+              window.location.href = '/login';
+            }}
+            className="w-full p-3 rounded-2xl bg-gray-50 hover:bg-red-50 text-gray-700 hover:text-red-700 font-semibold flex items-center justify-between transition-colors text-left"
           >
             <div className="flex items-center gap-2.5">
               <LogOut className="w-4 h-4 text-gray-500 hover:text-red-600" />
               <span>Cerrar sesión / Iniciar con otra cuenta</span>
             </div>
             <ExternalLink className="w-3.5 h-3.5 opacity-50" />
-          </Link>
+          </button>
         </div>
       </div>
     </div>

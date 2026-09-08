@@ -36,16 +36,16 @@ export const Header: React.FC = () => {
         <Link
           href="/perfil"
           className="flex items-center gap-2 pl-2 pr-1 py-1 rounded-full bg-gray-100 hover:bg-gray-200 transition-colors"
-          title={`Perfil de ${currentProfile.display_name}`}
+          title={`Perfil de ${currentProfile.display_name || 'Mi Perfil'}`}
         >
           <span className="text-xs font-medium text-gray-700 max-w-[80px] truncate">
-            {currentProfile.display_name}
+            {currentProfile.display_name || 'Perfil'}
           </span>
           <div
             className="w-7 h-7 rounded-full flex items-center justify-center text-white text-xs font-bold shadow-xs ring-2 ring-white"
             style={{ backgroundColor: currentProfile.avatar_color || '#16A34A' }}
           >
-            {currentProfile.display_name.charAt(0).toUpperCase()}
+            {(currentProfile.display_name || 'U').charAt(0).toUpperCase()}
           </div>
         </Link>
       </div>

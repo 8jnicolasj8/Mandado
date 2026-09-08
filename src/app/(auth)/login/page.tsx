@@ -21,7 +21,7 @@ export default function LoginPage() {
     if (isSupabaseConfigured()) {
       try {
         const supabase = createClient();
-        const { error } = await supabase.auth.signInWithPassword({
+        const { data, error } = await supabase.auth.signInWithPassword({
           email,
           password,
         });
@@ -32,15 +32,31 @@ export default function LoginPage() {
           return;
         }
 
-        router.push('/');
+        if (data?.user) {
+          const meta = data.user.user_metadata || {};
+          const displayName = meta.display_name || data.user.email?.split('@')[0] || 'Mi Perfil';
+          const profile = {
+            id: data.user.id,
+            family_id: 'fam-default-001',
+            display_name: displayName,
+            avatar_color: meta.avatar_color || '#16A34A',
+            phone: meta.phone || null,
+            created_at: data.user.created_at || new Date().toISOString(),
+          };
+          localStorage.setItem('mandado_profile', JSON.stringify(profile));
+          if (meta.family_name) {
+            localStorage.setItem('mandado_family_name', meta.family_name);
+          }
+        }
+
+        window.location.href = '/';
       } catch (err: any) {
         setErrorMsg(err.message || 'Error al iniciar sesión');
         setLoading(false);
       }
     } else {
-      // In demo / local fallback mode
       setTimeout(() => {
-        router.push('/');
+        window.location.href = '/';
       }, 400);
     }
   };
