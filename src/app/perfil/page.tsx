@@ -51,10 +51,24 @@ export default function PerfilPage() {
     }
   };
 
-  const handleShareWhatsApp = () => {
+  const handleShareWhatsApp = async () => {
     const message = `¡Hola! 👋 Te invito a unirte a nuestra lista de compras familiar en Mandado 🛒.\n\nCódigo de nuestra familia:\n👉 *${familyInviteCode}*\n\nIngresa este código al registrarte en la app.`;
-    const url = `https://wa.me/?text=${encodeURIComponent(message)}`;
-    window.open(url, '_blank');
+
+    if (typeof navigator !== 'undefined' && navigator.share) {
+      try {
+        await navigator.share({
+          title: 'Mandado — Código de Familia',
+          text: message,
+        });
+        return;
+      } catch (_) {}
+    }
+
+    const url = createWhatsAppUrl(message);
+    const win = window.open(url, '_blank');
+    if (!win || win.closed || typeof win.closed === 'undefined') {
+      window.location.href = url;
+    }
   };
 
   const handleSavePhone = (e: React.FormEvent) => {

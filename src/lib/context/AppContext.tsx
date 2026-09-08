@@ -165,45 +165,45 @@ export const AppProvider = ({ children }: { children: React.ReactNode }) => {
             return;
           }
 
-          const meta = user.user_metadata || {};
-          const displayName = meta.display_name || user.email?.split('@')[0] || 'Mi Perfil';
-          const avatarColor = meta.avatar_color || '#16A34A';
-          const phone = meta.phone || null;
-
-          const updatedProfile: Profile = {
-            id: user.id,
-            family_id: DEFAULT_FAMILY.id,
-            display_name: displayName,
-            avatar_color: avatarColor,
-            phone: phone,
-            created_at: user.created_at || new Date().toISOString(),
-          };
-
-          setCurrentProfile(updatedProfile);
-          localStorage.setItem('mandado_profile', JSON.stringify(updatedProfile));
-
-          const familyInviteCode =
-            meta.family_code ||
-            localStorage.getItem('mandado_family_invite_code') ||
-            generateFamilyInviteCode();
-
-          setFamily((prev) => ({
-            ...prev,
-            name: meta.family_name || prev.name,
-            invite_code: familyInviteCode,
-          }));
-          localStorage.setItem('mandado_family_invite_code', familyInviteCode);
-
-          if (meta.family_name) {
-            localStorage.setItem('mandado_family_name', meta.family_name);
-          }
-
-          setFamilyMembers((prev) => {
-            if (prev.length === 0 || !prev.some((m) => m.id === user.id)) {
-              return [updatedProfile];
+          // Fetch full synchronized family data from server API
+          try {
+            const res = await fetch('/api/family/sync', { method: 'POST' });
+            if (res.ok) {
+              const data = await res.json();
+              if (data.family) {
+                setFamily(data.family);
+                localStorage.setItem('mandado_family_name', data.family.name);
+                localStorage.setItem('mandado_family_invite_code', data.family.invite_code);
+              }
+              if (data.profile) {
+                setCurrentProfile(data.profile);
+                localStorage.setItem('mandado_profile', JSON.stringify(data.profile));
+              }
+              if (data.members && data.members.length > 0) {
+                setFamilyMembers(data.members);
+              }
+              if (data.stores && data.stores.length > 0) {
+                setStores(data.stores);
+              }
+              if (data.products && data.products.length > 0) {
+                setProducts(data.products);
+              }
+              if (data.lists && data.lists.length > 0) {
+                setLists(data.lists);
+                setCurrentListId((prev) =>
+                  data.lists.some((l: any) => l.id === prev) ? prev : data.lists[0].id
+                );
+              }
+              if (data.list_items) {
+                setRawItems(data.list_items);
+              }
+              if (data.price_history) {
+                setPriceHistory(data.price_history);
+              }
             }
-            return prev.map((m) => (m.id === user.id ? updatedProfile : m));
-          });
+          } catch (syncErr) {
+            console.error('Error fetching /api/family/sync:', syncErr);
+          }
         } catch (err) {
           console.error('Error syncing Supabase auth user', err);
         }
@@ -211,48 +211,10 @@ export const AppProvider = ({ children }: { children: React.ReactNode }) => {
 
       syncAuthUser();
 
+      // Listen for auth state changes
       const { data: authListener } = supabase.auth.onAuthStateChange((event, session) => {
         if (session?.user) {
-          const user = session.user;
-          const meta = user.user_metadata || {};
-          const displayName = meta.display_name || user.email?.split('@')[0] || 'Mi Perfil';
-          const avatarColor = meta.avatar_color || '#16A34A';
-          const phone = meta.phone || null;
-
-          const updatedProfile: Profile = {
-            id: user.id,
-            family_id: DEFAULT_FAMILY.id,
-            display_name: displayName,
-            avatar_color: avatarColor,
-            phone: phone,
-            created_at: user.created_at || new Date().toISOString(),
-          };
-
-          setCurrentProfile(updatedProfile);
-          localStorage.setItem('mandado_profile', JSON.stringify(updatedProfile));
-
-          const familyInviteCode =
-            meta.family_code ||
-            localStorage.getItem('mandado_family_invite_code') ||
-            generateFamilyInviteCode();
-
-          setFamily((prev) => ({
-            ...prev,
-            name: meta.family_name || prev.name,
-            invite_code: familyInviteCode,
-          }));
-          localStorage.setItem('mandado_family_invite_code', familyInviteCode);
-
-          if (meta.family_name) {
-            localStorage.setItem('mandado_family_name', meta.family_name);
-          }
-
-          setFamilyMembers((prev) => {
-            if (prev.length === 0 || !prev.some((m) => m.id === user.id)) {
-              return [updatedProfile];
-            }
-            return prev.map((m) => (m.id === user.id ? updatedProfile : m));
-          });
+          syncAuthUser();
         } else if (event === 'SIGNED_OUT') {
           localStorage.removeItem('mandado_profile');
           const pathname = window.location.pathname;
@@ -262,8 +224,70 @@ export const AppProvider = ({ children }: { children: React.ReactNode }) => {
         }
       });
 
+      // Connect Supabase Realtime for instant multi-device synchronization
+      const realtimeChannel = supabase
+        .channel('mandado-global-sync')
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'list_items' }, (payload) => {
+          if (payload.eventType === 'INSERT') {
+            const newItem = payload.new as any;
+            setRawItems((prev) => (prev.some((i) => i.id === newItem.id) ? prev : [newItem, ...prev]));
+          } else if (payload.eventType === 'UPDATE') {
+            const updated = payload.new as any;
+            setRawItems((prev) => prev.map((i) => (i.id === updated.id ? updated : i)));
+          } else if (payload.eventType === 'DELETE') {
+            const deletedId = (payload.old as any)?.id;
+            if (deletedId) setRawItems((prev) => prev.filter((i) => i.id !== deletedId));
+          }
+        })
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'products' }, (payload) => {
+          if (payload.eventType === 'INSERT') {
+            const newP = payload.new as Product;
+            setProducts((prev) => (prev.some((p) => p.id === newP.id) ? prev : [...prev, newP]));
+          } else if (payload.eventType === 'UPDATE') {
+            const updatedP = payload.new as Product;
+            setProducts((prev) => prev.map((p) => (p.id === updatedP.id ? updatedP : p)));
+          } else if (payload.eventType === 'DELETE') {
+            const deletedId = (payload.old as any)?.id;
+            if (deletedId) setProducts((prev) => prev.filter((p) => p.id !== deletedId));
+          }
+        })
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'stores' }, (payload) => {
+          if (payload.eventType === 'INSERT') {
+            const newS = payload.new as Store;
+            setStores((prev) => (prev.some((s) => s.id === newS.id) ? prev : [...prev, newS]));
+          } else if (payload.eventType === 'UPDATE') {
+            const updatedS = payload.new as Store;
+            setStores((prev) => prev.map((s) => (s.id === updatedS.id ? updatedS : s)));
+          }
+        })
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'price_history' }, (payload) => {
+          if (payload.eventType === 'INSERT') {
+            const newPh = payload.new as PriceHistory;
+            setPriceHistory((prev) => [newPh, ...prev]);
+          }
+        })
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'lists' }, (payload) => {
+          if (payload.eventType === 'INSERT') {
+            const newL = payload.new as ShoppingList;
+            setLists((prev) => (prev.some((l) => l.id === newL.id) ? prev : [...prev, newL]));
+          }
+        })
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'profiles' }, (payload) => {
+          if (payload.eventType === 'INSERT' || payload.eventType === 'UPDATE') {
+            const updatedMember = payload.new as Profile;
+            setFamilyMembers((prev) => {
+              if (prev.some((m) => m.id === updatedMember.id)) {
+                return prev.map((m) => (m.id === updatedMember.id ? updatedMember : m));
+              }
+              return [...prev, updatedMember];
+            });
+          }
+        })
+        .subscribe();
+
       return () => {
         authListener.subscription.unsubscribe();
+        supabase.removeChannel(realtimeChannel);
       };
     }
   }, []);
@@ -388,19 +412,42 @@ export const AppProvider = ({ children }: { children: React.ReactNode }) => {
     return lists.find((l) => l.id === currentListId);
   }, [lists, currentListId]);
 
-  // Actions
-  const toggleCheckItem = useCallback((itemId: string) => {
-    setRawItems((prev) =>
-      prev.map((item) => (item.id === itemId ? { ...item, checked: !item.checked } : item))
-    );
+  // Helper to send mutations to server
+  const mutateServer = useCallback(async (action: string, payload: any) => {
+    try {
+      await fetch('/api/family/mutate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action, payload }),
+      });
+    } catch (err) {
+      console.error(`Error in mutateServer (${action}):`, err);
+    }
   }, []);
 
-  const updateItemQuantity = useCallback((itemId: string, newQty: number) => {
-    if (newQty <= 0) return;
-    setRawItems((prev) =>
-      prev.map((item) => (item.id === itemId ? { ...item, quantity: newQty } : item))
-    );
-  }, []);
+  // Actions
+  const toggleCheckItem = useCallback(
+    (itemId: string) => {
+      setRawItems((prev) => {
+        const item = prev.find((i) => i.id === itemId);
+        const nextChecked = item ? !item.checked : true;
+        mutateServer('toggle_item', { id: itemId, checked: nextChecked });
+        return prev.map((i) => (i.id === itemId ? { ...i, checked: nextChecked } : i));
+      });
+    },
+    [mutateServer]
+  );
+
+  const updateItemQuantity = useCallback(
+    (itemId: string, newQty: number) => {
+      if (newQty <= 0) return;
+      setRawItems((prev) =>
+        prev.map((item) => (item.id === itemId ? { ...item, quantity: newQty } : item))
+      );
+      mutateServer('update_item_qty', { id: itemId, quantity: newQty });
+    },
+    [mutateServer]
+  );
 
   const addItemToList = useCallback(
     ({
@@ -418,9 +465,10 @@ export const AppProvider = ({ children }: { children: React.ReactNode }) => {
     }) => {
       const product = products.find((p) => p.id === productId);
       const chosenStoreId = storeId !== undefined ? storeId : product?.canonical_store_id || null;
+      const newId = typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : `item-${Date.now()}`;
 
       const newItem: any = {
-        id: `item-${Date.now()}`,
+        id: newId,
         list_id: currentListId,
         product_id: productId,
         store_id: chosenStoreId,
@@ -433,32 +481,42 @@ export const AppProvider = ({ children }: { children: React.ReactNode }) => {
       };
 
       setRawItems((prev) => [newItem, ...prev]);
+      mutateServer('add_item', newItem);
     },
-    [currentListId, products, currentProfile.id]
+    [currentListId, products, currentProfile.id, mutateServer]
   );
 
-  const removeItem = useCallback((itemId: string) => {
-    setRawItems((prev) => prev.filter((item) => item.id !== itemId));
-  }, []);
+  const removeItem = useCallback(
+    (itemId: string) => {
+      setRawItems((prev) => prev.filter((item) => item.id !== itemId));
+      mutateServer('remove_item', { id: itemId });
+    },
+    [mutateServer]
+  );
 
-  const changeItemStore = useCallback((itemId: string, newStoreId: string, isOverride: boolean) => {
-    setRawItems((prev) =>
-      prev.map((item) =>
-        item.id === itemId
-          ? {
-              ...item,
-              store_id: newStoreId,
-              is_store_override: isOverride,
-            }
-          : item
-      )
-    );
-  }, []);
+  const changeItemStore = useCallback(
+    (itemId: string, newStoreId: string, isOverride: boolean) => {
+      setRawItems((prev) =>
+        prev.map((item) =>
+          item.id === itemId
+            ? {
+                ...item,
+                store_id: newStoreId,
+                is_store_override: isOverride,
+              }
+            : item
+        )
+      );
+      mutateServer('change_item_store', { id: itemId, store_id: newStoreId, is_store_override: isOverride });
+    },
+    [mutateServer]
+  );
 
   const addStore = useCallback(
     (storeData: Omit<Store, 'id' | 'family_id' | 'created_at'>): Store => {
+      const newStoreId = typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : `store-${Date.now()}`;
       const newStore: Store = {
-        id: `store-${Date.now()}`,
+        id: newStoreId,
         family_id: family.id,
         name: storeData.name,
         category: storeData.category,
@@ -469,14 +527,15 @@ export const AppProvider = ({ children }: { children: React.ReactNode }) => {
       };
 
       setStores((prev) => [...prev, newStore]);
+      mutateServer('add_store', newStore);
       return newStore;
     },
-    [family.id]
+    [family.id, mutateServer]
   );
 
   const addProduct = useCallback(
     (productData: { name: string; initialStoreId?: string | null; initialPrice?: number | null }): Product => {
-      const newProductId = `prod-${Date.now()}`;
+      const newProductId = typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : `prod-${Date.now()}`;
       const newProduct: Product = {
         id: newProductId,
         family_id: family.id,
@@ -486,10 +545,12 @@ export const AppProvider = ({ children }: { children: React.ReactNode }) => {
       };
 
       setProducts((prev) => [...prev, newProduct]);
+      mutateServer('add_product', newProduct);
 
       if (productData.initialStoreId && productData.initialPrice) {
+        const newPriceId = typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : `ph-${Date.now()}`;
         const newPriceRecord: PriceHistory = {
-          id: `ph-${Date.now()}`,
+          id: newPriceId,
           product_id: newProductId,
           store_id: productData.initialStoreId,
           price: productData.initialPrice,
@@ -497,17 +558,19 @@ export const AppProvider = ({ children }: { children: React.ReactNode }) => {
           recorded_at: new Date().toISOString(),
         };
         setPriceHistory((prev) => [...prev, newPriceRecord]);
+        mutateServer('record_price', newPriceRecord);
       }
 
       return newProduct;
     },
-    [family.id, currentProfile.id]
+    [family.id, currentProfile.id, mutateServer]
   );
 
   const recordPrice = useCallback(
     (productId: string, storeId: string, price: number) => {
+      const newPriceId = typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : `ph-${Date.now()}`;
       const newRecord: PriceHistory = {
-        id: `ph-${Date.now()}`,
+        id: newPriceId,
         product_id: productId,
         store_id: storeId,
         price,
@@ -517,6 +580,7 @@ export const AppProvider = ({ children }: { children: React.ReactNode }) => {
 
       const updatedHistory = [...priceHistory, newRecord];
       setPriceHistory(updatedHistory);
+      mutateServer('record_price', newRecord);
 
       // Recalculate canonical store
       const { storeId: newCanonicalStoreId } = calculateCanonicalStore(productId);
@@ -528,14 +592,15 @@ export const AppProvider = ({ children }: { children: React.ReactNode }) => {
         );
       }
     },
-    [currentProfile.id, priceHistory, calculateCanonicalStore]
+    [currentProfile.id, priceHistory, calculateCanonicalStore, mutateServer]
   );
 
   const createList = useCallback(
     (name: string, isShared: boolean): ShoppingList => {
       const formattedName = formatListName(name);
+      const newListId = typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : `list-${Date.now()}`;
       const newList: ShoppingList = {
-        id: `list-${Date.now()}`,
+        id: newListId,
         family_id: family.id,
         owner_id: isShared ? null : currentProfile.id,
         name: formattedName,
@@ -545,9 +610,10 @@ export const AppProvider = ({ children }: { children: React.ReactNode }) => {
 
       setLists((prev) => [...prev, newList]);
       setCurrentListId(newList.id);
+      mutateServer('create_list', newList);
       return newList;
     },
-    [family.id, currentProfile.id]
+    [family.id, currentProfile.id, mutateServer]
   );
 
   const updateProfilePhone = useCallback((phone: string) => {

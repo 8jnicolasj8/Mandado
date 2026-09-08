@@ -73,8 +73,39 @@ export const WhatsAppSendModal: React.FC<WhatsAppSendModalProps> = ({
     }
   }, [isOpen, initialSelectedStoreId, storesInList]);
 
-  if (!isOpen || activeItems.length === 0) {
+  const openWhatsAppUrl = (url: string) => {
+    const win = window.open(url, '_blank');
+    if (!win || win.closed || typeof win.closed === 'undefined') {
+      window.location.href = url;
+    }
+  };
+
+  if (!isOpen) {
     return null;
+  }
+
+  if (activeItems.length === 0) {
+    return (
+      <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-end sm:items-center justify-center p-4 animate-in fade-in duration-200">
+        <div className="bg-white w-full max-w-sm rounded-3xl p-6 shadow-2xl border border-gray-200 relative animate-in slide-in-from-bottom-4 duration-200 text-center space-y-4">
+          <div className="w-14 h-14 rounded-3xl bg-[#25D366]/10 text-[#25D366] flex items-center justify-center mx-auto shadow-xs">
+            <MessageSquare className="w-7 h-7" />
+          </div>
+          <div>
+            <h3 className="text-base font-extrabold text-gray-900">Tu lista está vacía</h3>
+            <p className="text-xs text-gray-500 mt-1">
+              Agrega productos a tu lista familiar para poder armar y enviar el pedido por WhatsApp con comercios y precios.
+            </p>
+          </div>
+          <button
+            onClick={onClose}
+            className="w-full py-3 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold rounded-xl shadow-xs transition-all"
+          >
+            Entendido
+          </button>
+        </div>
+      </div>
+    );
   }
 
   const toggleStore = (storeId: string) => {
@@ -117,14 +148,26 @@ export const WhatsAppSendModal: React.FC<WhatsAppSendModalProps> = ({
   const handleSendToMember = (phone?: string | null) => {
     if (selectedStoreIds.length === 0) return;
     const url = createWhatsAppUrl(generatedText, phone);
-    window.open(url, '_blank', 'noopener,noreferrer');
+    openWhatsAppUrl(url);
     onClose();
   };
 
-  const handleSendGeneral = () => {
+  const handleSendGeneral = async () => {
     if (selectedStoreIds.length === 0) return;
+
+    if (typeof navigator !== 'undefined' && navigator.share) {
+      try {
+        await navigator.share({
+          title: effectiveListName,
+          text: generatedText,
+        });
+        onClose();
+        return;
+      } catch (_) {}
+    }
+
     const url = createWhatsAppUrl(generatedText);
-    window.open(url, '_blank', 'noopener,noreferrer');
+    openWhatsAppUrl(url);
     onClose();
   };
 
@@ -345,10 +388,6 @@ export const WhatsAppButton: React.FC<{ listName?: string }> = ({ listName }) =>
 
   const activeItems = listItems.filter((item) => !item.checked);
 
-  if (activeItems.length === 0) {
-    return null;
-  }
-
   return (
     <>
       <button
@@ -359,15 +398,19 @@ export const WhatsAppButton: React.FC<{ listName?: string }> = ({ listName }) =>
       >
         <div className="relative">
           <Share2 className="w-5 h-5 stroke-[2.5]" />
-          <span className="absolute -top-1 -right-1 flex h-2.5 w-2.5">
-            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-white opacity-75"></span>
-            <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-white"></span>
-          </span>
+          {activeItems.length > 0 && (
+            <span className="absolute -top-1 -right-1 flex h-2.5 w-2.5">
+              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-white opacity-75"></span>
+              <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-white"></span>
+            </span>
+          )}
         </div>
         <span className="font-bold text-xs tracking-wide">WhatsApp</span>
-        <span className="bg-white/20 text-white font-mono text-[11px] px-1.5 py-0.5 rounded-full font-bold">
-          {activeItems.length}
-        </span>
+        {activeItems.length > 0 && (
+          <span className="bg-white/20 text-white font-mono text-[11px] px-1.5 py-0.5 rounded-full font-bold">
+            {activeItems.length}
+          </span>
+        )}
       </button>
 
       <WhatsAppSendModal
