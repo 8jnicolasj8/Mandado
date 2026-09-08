@@ -2,7 +2,6 @@
 
 import React, { useState } from 'react';
 import Link from 'next/link';
-import { useRouter } from 'next/navigation';
 import {
   ShoppingBag,
   User,
@@ -11,24 +10,34 @@ import {
   ArrowRight,
   AlertCircle,
   Sparkles,
+  Phone,
+  Users,
 } from 'lucide-react';
 import { createClient, isSupabaseConfigured } from '@/lib/supabase/client';
 import { generateFamilyInviteCode } from '@/lib/utils/family';
 import { getInternalAuthEmail } from '@/lib/utils/auth';
 
 export default function RegisterPage() {
-  const router = useRouter();
-
   const [familyCode, setFamilyCode] = useState('');
+  const [familySurname, setFamilySurname] = useState('');
   const [username, setUsername] = useState('');
+  const [phone, setPhone] = useState('');
   const [password, setPassword] = useState('');
 
   const [loading, setLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
   const handleGenerateCode = () => {
-    const newCode = generateFamilyInviteCode();
+    const cleanSurname = familySurname.trim();
+
+    if (!cleanSurname) {
+      setErrorMsg('Ingresa primero el apellido de tu familia para generar el código');
+      return;
+    }
+
+    const newCode = generateFamilyInviteCode(cleanSurname);
     setFamilyCode(newCode);
+    setErrorMsg(null);
   };
 
   const handleRegister = async (e: React.FormEvent) => {
@@ -37,8 +46,9 @@ export default function RegisterPage() {
 
     const cleanFam = familyCode.trim().toUpperCase();
     const cleanUser = username.trim();
+    const cleanPhone = phone.trim();
 
-    if (!cleanFam || !cleanUser || !password) {
+    if (!cleanFam || !cleanUser || !cleanPhone || !password) {
       setErrorMsg('Por favor completa todos los campos');
       return;
     }
@@ -53,10 +63,19 @@ export default function RegisterPage() {
       return;
     }
 
+    if (cleanPhone.replace(/\D/g, '').length < 6) {
+      setErrorMsg('Ingresa un número de celular / WhatsApp válido');
+      return;
+    }
+
     if (password.length < 6) {
       setErrorMsg('La contraseña debe tener al menos 6 caracteres');
       return;
     }
+
+    const cleanFamilyName = familySurname.trim()
+      ? `Familia ${familySurname.trim()}`
+      : undefined;
 
     setLoading(true);
 
@@ -70,6 +89,8 @@ export default function RegisterPage() {
             username: cleanUser,
             familyCode: cleanFam,
             password,
+            phone: cleanPhone,
+            familyName: cleanFamilyName,
           }),
         });
 
@@ -101,11 +122,14 @@ export default function RegisterPage() {
           family_id: 'fam-default-001',
           display_name: cleanUser,
           avatar_color: '#16A34A',
-          phone: null,
+          phone: cleanPhone,
           created_at: new Date().toISOString(),
         };
         localStorage.setItem('mandado_profile', JSON.stringify(profile));
         localStorage.setItem('mandado_family_invite_code', cleanFam);
+        if (cleanFamilyName) {
+          localStorage.setItem('mandado_family_name', cleanFamilyName);
+        }
 
         window.location.href = '/';
       } catch (err: any) {
@@ -120,11 +144,14 @@ export default function RegisterPage() {
           family_id: 'fam-default-001',
           display_name: cleanUser,
           avatar_color: '#16A34A',
-          phone: null,
+          phone: cleanPhone,
           created_at: new Date().toISOString(),
         };
         localStorage.setItem('mandado_profile', JSON.stringify(newProfile));
         localStorage.setItem('mandado_family_invite_code', cleanFam);
+        if (cleanFamilyName) {
+          localStorage.setItem('mandado_family_name', cleanFamilyName);
+        }
       } catch (e) {
         console.error('Error saving local profile', e);
       }
@@ -184,7 +211,7 @@ export default function RegisterPage() {
               <input
                 type="text"
                 required
-                placeholder="Ej: MANDADO-JAUR01"
+                placeholder="Ej: MANDADO-GONZALEZ-K8Y4B2"
                 value={familyCode}
                 onChange={(e) => setFamilyCode(e.target.value.toUpperCase())}
                 className="w-full pl-9 pr-3 py-2.5 text-xs bg-gray-50 border border-gray-200 rounded-xl uppercase font-mono tracking-wider focus:outline-hidden focus:ring-2 focus:ring-emerald-500 focus:bg-white transition-all"
@@ -192,6 +219,26 @@ export default function RegisterPage() {
             </div>
             <p className="text-[10px] text-gray-400 mt-1">
               Ingresa el código que te dio tu familia, o genera uno si creas una nueva.
+            </p>
+          </div>
+
+          {/* Apellido de la Familia (para generar un código nuevo) */}
+          <div>
+            <label className="block text-xs font-semibold text-gray-700 mb-1">
+              Apellido de la familia
+            </label>
+            <div className="relative">
+              <Users className="w-4 h-4 text-gray-400 absolute left-3 top-3" />
+              <input
+                type="text"
+                placeholder="Ej: González"
+                value={familySurname}
+                onChange={(e) => setFamilySurname(e.target.value)}
+                className="w-full pl-9 pr-3 py-2.5 text-xs bg-gray-50 border border-gray-200 rounded-xl focus:outline-hidden focus:ring-2 focus:ring-emerald-500 focus:bg-white transition-all"
+              />
+            </div>
+            <p className="text-[10px] text-gray-400 mt-1">
+              Solo es necesario si vas a generar un código nuevo para tu familia.
             </p>
           </div>
 
@@ -211,6 +258,27 @@ export default function RegisterPage() {
                 className="w-full pl-9 pr-3 py-2.5 text-xs bg-gray-50 border border-gray-200 rounded-xl focus:outline-hidden focus:ring-2 focus:ring-emerald-500 focus:bg-white transition-all"
               />
             </div>
+          </div>
+
+          {/* Celular / WhatsApp */}
+          <div>
+            <label className="block text-xs font-semibold text-gray-700 mb-1">
+              Celular / WhatsApp <span className="text-red-500">*</span>
+            </label>
+            <div className="relative">
+              <Phone className="w-4 h-4 text-gray-400 absolute left-3 top-3" />
+              <input
+                type="tel"
+                required
+                placeholder="Ej: 2355 512260 o +54 9..."
+                value={phone}
+                onChange={(e) => setPhone(e.target.value)}
+                className="w-full pl-9 pr-3 py-2.5 text-xs bg-gray-50 border border-gray-200 rounded-xl focus:outline-hidden focus:ring-2 focus:ring-emerald-500 focus:bg-white transition-all font-mono"
+              />
+            </div>
+            <p className="text-[10px] text-gray-400 mt-1">
+              Así tu familia puede enviarte el mandado directamente a tu WhatsApp.
+            </p>
           </div>
 
           {/* Contraseña */}

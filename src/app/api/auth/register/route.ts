@@ -5,7 +5,7 @@ import { getInternalAuthEmail, normalizeAuthIdentifier } from '@/lib/utils/auth'
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { username, familyCode, password } = body;
+    const { username, familyCode, password, phone, familyName } = body;
 
     if (!username || !familyCode || !password) {
       return NextResponse.json(
@@ -24,6 +24,13 @@ export async function POST(request: NextRequest) {
     if (familyCode.trim().length < 3) {
       return NextResponse.json(
         { error: 'El código de familia debe tener al menos 3 caracteres' },
+        { status: 400 }
+      );
+    }
+
+    if (phone && (phone.trim().replace(/\D/g, '').length < 6)) {
+      return NextResponse.json(
+        { error: 'Ingresa un número de celular / WhatsApp válido' },
         { status: 400 }
       );
     }
@@ -57,6 +64,8 @@ export async function POST(request: NextRequest) {
       user_metadata: {
         display_name: username.trim(),
         family_code: finalFamilyCode,
+        phone: phone?.trim() || null,
+        family_name: familyName?.trim() || null,
       },
     });
 
