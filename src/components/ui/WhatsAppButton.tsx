@@ -96,6 +96,17 @@ export const WhatsAppSendModal: React.FC<WhatsAppSendModalProps> = ({
     return storesInList.map((s) => s.id);
   }, [selectedStoreIds, storesInList]);
 
+  // Compute effective list name
+  const effectiveListName = (() => {
+    if (effectiveStoreIds.length === 1 && storesInList.length > 1) {
+      const singleStore = storesInList.find((s) => s.id === effectiveStoreIds[0]);
+      if (singleStore) {
+        return `Lista: ${singleStore.name}`;
+      }
+    }
+    return listName || currentList?.name || 'Mandado';
+  })();
+
   if (!isOpen) {
     return null;
   }
@@ -137,17 +148,6 @@ export const WhatsAppSendModal: React.FC<WhatsAppSendModalProps> = ({
   const handleClearStores = () => {
     setSelectedStoreIds([]);
   };
-
-  // Compute effective list name
-  const effectiveListName = useMemo(() => {
-    if (effectiveStoreIds.length === 1 && storesInList.length > 1) {
-      const singleStore = storesInList.find((s) => s.id === effectiveStoreIds[0]);
-      if (singleStore) {
-        return `Lista: ${singleStore.name}`;
-      }
-    }
-    return listName || currentList?.name || 'Mandado';
-  }, [effectiveStoreIds, storesInList, listName, currentList?.name]);
 
   // Generate customized text for chosen stores
   const generatedText = generateWhatsAppShoppingListText({
