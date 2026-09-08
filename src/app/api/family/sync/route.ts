@@ -10,6 +10,20 @@ const DEFAULT_STORES_DATA = [
   { name: 'Carnicería Justy', category: 'carniceria', address: 'General Pinto, Buenos Aires', lat: -34.7645000, lng: -61.8918000 },
   { name: 'Súper GAO', category: 'supermercado', address: 'Sarmiento 342, General Pinto', lat: -34.7652183, lng: -61.8935359 },
   { name: 'Carnicería Los Charitos', category: 'carniceria', address: 'General Pinto, Buenos Aires', lat: -34.7658000, lng: -61.8942000 },
+  { name: 'Sanfra', category: 'supermercado', address: 'General Pinto, Buenos Aires', lat: -34.7684858, lng: -61.8879621 },
+  { name: 'Supermercado Berlín', category: 'supermercado', address: 'General Pinto, Buenos Aires', lat: -34.7692101, lng: -61.8913783 },
+  { name: 'Carnicería La Chacra', category: 'carniceria', address: 'General Pinto, Buenos Aires', lat: -34.7681164, lng: -61.8890326 },
+  { name: 'Pollería Los Amigos', category: 'carniceria', address: 'General Pinto, Buenos Aires', lat: -34.7671451, lng: -61.8899217 },
+  { name: 'Kiosco 84', category: 'otro', address: 'General Pinto, Buenos Aires', lat: -34.7630799, lng: -61.8904834 },
+  { name: 'Kiosco Free PAZZ', category: 'otro', address: 'General Pinto, Buenos Aires', lat: -34.7660178, lng: -61.8913423 },
+  { name: 'Kiosco Rey Sol', category: 'otro', address: 'General Pinto, Buenos Aires', lat: -34.7678752, lng: -61.8913943 },
+  { name: 'Dietética Buena Vida', category: 'otro', address: 'General Pinto, Buenos Aires', lat: -34.7683016, lng: -61.8881593 },
+  { name: 'Supermercado Luna', category: 'supermercado', address: 'General Pinto, Buenos Aires', lat: -34.7635117, lng: -61.889449 },
+  { name: 'Autoservicio La Garita', category: 'supermercado', address: 'General Pinto, Buenos Aires', lat: -34.7700637, lng: -61.8869584 },
+  { name: 'Panadería Los Abuelos', category: 'otro', address: 'General Pinto, Buenos Aires', lat: -34.7635545, lng: -61.8907016 },
+  { name: 'Panadería Las Bambinas', category: 'otro', address: 'General Pinto, Buenos Aires', lat: -34.7652718, lng: -61.891053 },
+  { name: 'Panadería La Italiana', category: 'otro', address: 'General Pinto, Buenos Aires', lat: -34.7657701, lng: -61.8909698 },
+  { name: 'Panadería 2 de Abril', category: 'otro', address: 'General Pinto, Buenos Aires', lat: -34.7645533, lng: -61.8924035 },
 ];
 
 const LEGACY_SEED_PRODUCTS = [
@@ -107,12 +121,18 @@ export async function POST(request: NextRequest) {
     familyData = profile.families;
   }
 
-  // 2. Ensure initial stores exist for this family
+  // 2. Ensure default stores exist for this family (insert only the missing ones)
   const { data: existingStores } = await admin.from('stores').select('*').eq('family_id', familyId);
   if (!existingStores || existingStores.length === 0) {
     await admin.from('stores').insert(
       DEFAULT_STORES_DATA.map((s) => ({ ...s, family_id: familyId }))
     );
+  } else {
+    const existingNames = new Set(existingStores.map((s) => s.name));
+    const missing = DEFAULT_STORES_DATA.filter((s) => !existingNames.has(s.name));
+    if (missing.length > 0) {
+      await admin.from('stores').insert(missing.map((s) => ({ ...s, family_id: familyId })));
+    }
   }
 
   // 3. Remove legacy seed/mock products (they now live in the hardcoded
