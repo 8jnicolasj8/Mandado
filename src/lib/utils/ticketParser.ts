@@ -38,19 +38,27 @@ Reglas para MODO A:
   por unidad (no el total de la línea)
 - Ignorar completamente: subtotal, total, IVA, código de cajera, 
   leyendas de ahorro, datos fiscales, número de factura
-- nombre_normalizado: primera letra mayúscula, resto minúscula, 
-  expandir abreviaturas comunes argentinas:
-  HOJ → Hojas, SAC → Sachet, P HIG → Papel Higiénico, 
+- Primera letra mayúscula, resto minúscula
+- Expandir abreviaturas argentinas comunes:
+  HOJ → Hojas, SAC → Sachet, P HIG → Papel Higiénico,
   GALLETIT → Galletitas, GELAT → Gelatina, CHOC → Chocolate,
   VAIN → Vainilla, CLASI → Clásico, DESC → Descremada,
-  C/EXTR → Con Extra, GRANO → Granos
-- Cuando un producto es un alimento procesado con sabor 
-  (gelatina, yogur, galletitas, caramelos, chicles, jugos, 
-  mermeladas, helados), el nombre normalizado SIEMPRE debe 
-  incluir el tipo de producto + el sabor.
-  Correcto: "Gelatina Frambuesa", "Yogur Frutilla", "Chicle Uva"
-  Incorrecto: "Frambuesa", "Frutilla", "Uva"
-- El sabor nunca es el producto. El producto es lo que contiene el sabor.
+  C/EXTR → Con Extra, GRANO → Granos, MEDALLON → Medallón,
+  OBLEAS → Obleas, OBLEA → Oblea
+- Cuando el producto es un alimento procesado con sabor (gelatina,
+  yogur, galletitas, caramelos, chicles, jugos, mermeladas, helados,
+  obleas), el nombre SIEMPRE incluye tipo de producto + sabor.
+  Correcto: "Gelatina Frambuesa", "Chicle Uva", "Obleas Chocolate"
+  Incorrecto: "Frambuesa", "Uva", "Chocolate"
+- Cuando el producto es un vegetal o fruta en su forma natural
+  (no procesada), nombrar solo el producto.
+  Correcto: "Choclo", "Manzana", "Espinaca fresca"
+- Cuando el producto es un vegetal o fruta PROCESADO o CONGELADO,
+  incluir el tipo de preparación.
+  Correcto: "Medallón de Espinaca", "Choclo en Granos Día 300g"
+  Incorrecto: "Espinaca", "Choclo"
+- Incluir el gramaje o volumen si aparece en el ticket y es relevante
+  para distinguir el producto: "Oblea Vainilla 100g"
 
 
 Para MODO B devolvé:
