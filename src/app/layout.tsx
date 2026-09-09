@@ -3,6 +3,7 @@ import './globals.css';
 import { AppProvider } from '@/lib/context/AppContext';
 import { Header } from '@/components/layout/Header';
 import { BottomNav } from '@/components/layout/BottomNav';
+import { Footer } from '@/components/layout/Footer';
 
 export const metadata: Metadata = {
   title: 'Mandado — Lista de Compras Familiar',
@@ -33,6 +34,7 @@ export default function RootLayout({
           <div className="w-full max-w-md mx-auto min-h-screen bg-[#F9FAFB] shadow-xl flex flex-col relative">
             <Header />
             <main className="flex-1 pb-32 overflow-y-auto">{children}</main>
+            <Footer />
             <BottomNav />
           </div>
         </AppProvider>

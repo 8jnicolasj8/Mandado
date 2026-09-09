@@ -12,6 +12,7 @@ interface RecordPriceModalProps {
   defaultStore?: Store | null;
   defaultProductId?: string | null;
   defaultStoreId?: string | null;
+  listItemId?: string | null;
 }
 
 export const RecordPriceModal: React.FC<RecordPriceModalProps> = ({
@@ -21,8 +22,9 @@ export const RecordPriceModal: React.FC<RecordPriceModalProps> = ({
   defaultStore,
   defaultProductId,
   defaultStoreId,
+  listItemId,
 }) => {
-  const { products, stores, recordPrice, getLatestPriceForStore } = useApp();
+  const { products, stores, recordPrice, getLatestPriceForStore, listItems, changeItemStore } = useApp();
 
   const [selectedProductId, setSelectedProductId] = useState<string>('');
   const [selectedStoreId, setSelectedStoreId] = useState<string>('');
@@ -68,6 +70,14 @@ export const RecordPriceModal: React.FC<RecordPriceModalProps> = ({
     }
 
     recordPrice(selectedProductId, selectedStoreId, priceNum);
+    // Cuando se registra desde un ítem de la lista, dejamos asignada la tienda
+    // seleccionada a ese ítem para que el precio y la tienda queden en un solo paso.
+    if (listItemId && selectedStoreId) {
+      const item = listItems.find((i) => i.id === listItemId);
+      if (item && item.store?.id !== selectedStoreId) {
+        changeItemStore(listItemId, selectedStoreId, true);
+      }
+    }
     onClose();
   };
 

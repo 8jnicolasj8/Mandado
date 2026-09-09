@@ -15,8 +15,10 @@ import {
   DollarSign,
   TrendingDown,
   ReceiptText,
+  Lock,
 } from 'lucide-react';
 import { useApp } from '@/lib/context/AppContext';
+import { useTier } from '@/lib/hooks/useTier';
 import { PriceBadge } from '@/components/ui/PriceBadge';
 import { RecordPriceModal } from '@/components/ui/RecordPriceModal';
 import { TicketScannerModal } from '@/components/ui/TicketScannerModal';
@@ -30,11 +32,13 @@ export default function StoreDetailPage() {
   const storeId = params.id as string;
 
   const { stores, products, priceHistory, addItemToList } = useApp();
+  const { isFree, isPlus } = useTier();
 
   const [isRecordModalOpen, setIsRecordModalOpen] = useState(false);
   const [selectedProductId, setSelectedProductId] = useState<string | null>(null);
   const [justAddedMsg, setJustAddedMsg] = useState<string | null>(null);
   const [isScannerOpen, setIsScannerOpen] = useState(false);
+  const [showPlanLock, setShowPlanLock] = useState(false);
 
   const store = useMemo(() => stores.find((s) => s.id === storeId), [stores, storeId]);
 
@@ -134,11 +138,22 @@ export default function StoreDetailPage() {
 
         <div className="flex items-center gap-2">
           <button
-            onClick={() => setIsScannerOpen(true)}
+            onClick={() => {
+              if (isFree) {
+                setShowPlanLock(true);
+              } else {
+                setIsScannerOpen(true);
+              }
+            }}
             className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-white hover:bg-gray-50 text-gray-800 border border-gray-200 text-xs font-semibold rounded-xl shadow-xs active:scale-95 transition-all"
           >
             <ReceiptText className="w-4 h-4 text-emerald-600" />
             Escanear Ticket
+            {isPlus ? (
+              <span className="px-1 py-0.5 text-[9px] font-black text-white bg-emerald-600 rounded-md leading-none">
+                BETA
+              </span>
+            ) : null}
           </button>
           <button
             onClick={() => handleOpenRecordPrice()}
@@ -304,6 +319,38 @@ export default function StoreDetailPage() {
         defaultStoreId={store.id}
         defaultProductId={selectedProductId || undefined}
       />
+
+      {/* Plan lock modal (free tier scanner) */}
+      {showPlanLock && (
+        <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-white w-full max-w-sm rounded-3xl p-5 shadow-2xl animate-in fade-in zoom-in-95 duration-200 text-center">
+            <div className="w-12 h-12 rounded-2xl bg-amber-50 text-amber-600 flex items-center justify-center mx-auto mb-3">
+              <Lock className="w-6 h-6" />
+            </div>
+            <h2 className="text-base font-bold text-gray-900">Esta función es parte de Mandado.</h2>
+            <p className="text-xs text-gray-500 mt-1.5">
+              El escaneo de tickets que detecta productos y precios con IA está disponible con el plan Mandado o Mandado Plus.
+            </p>
+            <div className="flex items-center gap-2 mt-5">
+              <button
+                onClick={() => setShowPlanLock(false)}
+                className="flex-1 py-2.5 text-xs font-semibold text-gray-600 bg-gray-100 hover:bg-gray-200 rounded-xl transition-colors"
+              >
+                Ahora no
+              </button>
+              <button
+                onClick={() => {
+                  setShowPlanLock(false);
+                  router.push('/planes');
+                }}
+                className="flex-1 py-2.5 text-xs font-bold text-white bg-emerald-600 hover:bg-emerald-700 rounded-xl transition-colors shadow-xs"
+              >
+                Ver planes
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Scan ticket modal */}
       <TicketScannerModal

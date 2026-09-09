@@ -24,6 +24,7 @@ export default function HomePage() {
     isOpen: boolean;
     product?: Product | null;
     store?: Store | null;
+    listItemId?: string | null;
   }>({ isOpen: false });
 
   // Ensure current list is the shared family list if not set
@@ -223,6 +224,7 @@ export default function HomePage() {
                           isOpen: true,
                           product: item.product,
                           store: item.store || null,
+                          listItemId: item.id,
                         })
                       }
                     />
@@ -270,6 +272,7 @@ export default function HomePage() {
         onClose={() => setPriceModalData({ isOpen: false })}
         defaultProduct={priceModalData.product}
         defaultStore={priceModalData.store}
+        listItemId={priceModalData.listItemId || null}
       />
     </div>
   );

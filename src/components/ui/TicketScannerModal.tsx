@@ -42,7 +42,7 @@ export const TicketScannerModal: React.FC<TicketScannerModalProps> = ({
   storeId,
   storeName,
 }) => {
-  const { listItems, products, toggleCheckItem, updateItemQuantity, recordPrice, addProduct } = useApp();
+  const { listItems, products, toggleCheckItem, updateItemQuantity, recordPrice, addProduct, changeItemStore } = useApp();
 
   const [step, setStep] = useState<Step>('pick');
   const [ticket, setTicket] = useState<ParsedTicket | null>(null);
@@ -152,6 +152,13 @@ export const TicketScannerModal: React.FC<TicketScannerModalProps> = ({
     } else if (m.listItemId && !m.checkFull && m.remainingQty > 0) {
       updateItemQuantity(m.listItemId, m.remainingQty);
     }
+    // Asegurar que el ítem quede asignado a la tienda del ticket
+    if (m.listItemId) {
+      const item = listItems.find((i) => i.id === m.listItemId);
+      if (item && item.store?.id !== storeId) {
+        changeItemStore(m.listItemId, storeId, true);
+      }
+    }
     if (m.candidateId && m.article.precio_unitario > 0) {
       recordPrice(m.candidateId, storeId, m.article.precio_unitario);
     }
@@ -178,6 +185,10 @@ export const TicketScannerModal: React.FC<TicketScannerModalProps> = ({
     });
     for (const id of modoBIds) {
       toggleCheckItem(id);
+      const item = listItems.find((i) => i.id === id);
+      if (item && item.store?.id !== storeId) {
+        changeItemStore(id, storeId, true);
+      }
     }
     setStep('done');
   };

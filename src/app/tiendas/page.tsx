@@ -8,9 +8,10 @@ import { StoreCard } from '@/components/ui/StoreCard';
 import { StoreMap } from '@/components/maps/StoreMap';
 import { StoreCategory, Store } from '@/lib/types/database';
 import { CATEGORY_LABELS } from '@/lib/utils/whatsapp';
+import { computeStoresCentroid, filterStoresByRadius } from '@/lib/utils/geo';
 
 export default function TiendasPage() {
-  const { stores, priceHistory, addStore } = useApp();
+  const { stores, priceHistory, addStore, family } = useApp();
 
   const [activeTab, setActiveTab] = useState<'list' | 'map'>('list');
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
@@ -40,11 +41,12 @@ export default function TiendasPage() {
     return result;
   }, [priceHistory]);
 
-  // Filtered stores
+  // Filtered stores (category + radius limit)
   const filteredStores = useMemo(() => {
-    if (selectedCategory === 'all') return stores;
-    return stores.filter((s) => s.category === selectedCategory);
-  }, [stores, selectedCategory]);
+    const byCategory = selectedCategory === 'all' ? stores : stores.filter((s) => s.category === selectedCategory);
+    const centroid = computeStoresCentroid(stores);
+    return filterStoresByRadius(byCategory, family.search_radius_km, centroid);
+  }, [stores, selectedCategory, family.search_radius_km]);
 
   const handleGetCurrentLocation = () => {
     if (!navigator.geolocation) {
@@ -100,6 +102,13 @@ export default function TiendasPage() {
           <p className="text-xs text-gray-500 mt-0.5">
             {stores.length} comercios registrados por tu familia
           </p>
+
+          {family.search_radius_km ? (
+            <span className="inline-flex items-center gap-1 mt-1 text-[10px] font-semibold text-amber-700 bg-amber-50 border border-amber-200 px-2 py-0.5 rounded-full">
+              <MapPin className="w-3 h-3" />
+              Radio {family.search_radius_km} km
+            </span>
+          ) : null}
         </div>
 
         <button

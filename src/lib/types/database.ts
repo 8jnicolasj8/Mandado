@@ -1,9 +1,16 @@
 export type StoreCategory = 'verdulería' | 'verduleria' | 'supermercado' | 'carnicería' | 'carniceria' | 'otro';
 
+export type PlanTier = 'free' | 'mandado' | 'plus';
+
 export interface Family {
   id: string;
   name: string;
   invite_code: string;
+  tier: PlanTier;
+  pueblo?: string | null;
+  share_prices: boolean;
+  search_radius_km?: number | null;
+  has_price_import: boolean;
   created_at: string;
 }
 
@@ -42,6 +49,7 @@ export interface PriceHistory {
   price: number;
   recorded_by?: string | null;
   recorded_at: string;
+  source?: string | null;
 }
 
 export interface ShoppingList {

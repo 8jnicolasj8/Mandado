@@ -57,6 +57,7 @@ interface AppContextType {
   createList: (name: string, isShared: boolean) => ShoppingList;
   getLatestPriceForStore: (productId: string, storeId: string) => { price: number; recordedAt: string } | null;
   updateProfilePhone: (phone: string) => void;
+  updateFamilySettings: (patch: { search_radius_km?: number | null }) => void;
 }
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
@@ -92,7 +93,12 @@ export const AppProvider = ({ children }: { children: React.ReactNode }) => {
   const [products, setProducts] = useState<Product[]>(DEFAULT_PRODUCTS);
   const [priceHistory, setPriceHistory] = useState<PriceHistory[]>(DEFAULT_PRICE_HISTORY);
   const [lists, setLists] = useState<ShoppingList[]>(DEFAULT_LISTS);
-  const [currentListId, setCurrentListId] = useState<string>(DEFAULT_LISTS[0].id);
+  const [currentListId, setCurrentListId] = useState<string>(() => {
+    if (typeof window !== 'undefined') {
+      return localStorage.getItem('mandado_current_list_id') || DEFAULT_LISTS[0].id;
+    }
+    return DEFAULT_LISTS[0].id;
+  });
   const [rawItems, setRawItems] = useState(DEFAULT_LIST_ITEMS);
 
   // Load from localStorage or Supabase on mount
@@ -121,6 +127,12 @@ export const AppProvider = ({ children }: { children: React.ReactNode }) => {
       if (savedLists) {
         const parsed = JSON.parse(savedLists);
         setLists(parsed.map((l: ShoppingList) => ({ ...l, name: formatListName(l.name) })));
+        // Keep the user on a list that actually exists (persisted or first available)
+        setCurrentListId((prev) => {
+          const persistedId = localStorage.getItem('mandado_current_list_id');
+          const target = persistedId || prev;
+          return parsed.some((l: ShoppingList) => l.id === target) ? target : parsed[0]?.id || prev;
+        });
       }
 
       const savedItems = localStorage.getItem('mandado_raw_items');
@@ -196,7 +208,15 @@ export const AppProvider = ({ children }: { children: React.ReactNode }) => {
                 );
               }
               if (data.list_items) {
-                setRawItems(data.list_items);
+                // Merge instead of replacing: keep recent optimistic additions
+                // that haven't been ingested by the server fetch yet, so a
+                // sync arriving right after an add doesn't make items vanish.
+                setRawItems((prev) => {
+                  const merged = new Map<string, any>();
+                  for (const it of data.list_items) merged.set(it.id, it);
+                  for (const it of prev) if (!merged.has(it.id)) merged.set(it.id, it);
+                  return Array.from(merged.values());
+                });
               }
               if (data.price_history) {
                 setPriceHistory(data.price_history);
@@ -301,6 +321,7 @@ export const AppProvider = ({ children }: { children: React.ReactNode }) => {
       localStorage.setItem('mandado_products', JSON.stringify(products));
       localStorage.setItem('mandado_price_history', JSON.stringify(priceHistory));
       localStorage.setItem('mandado_lists', JSON.stringify(lists));
+      localStorage.setItem('mandado_current_list_id', currentListId);
       localStorage.setItem('mandado_raw_items', JSON.stringify(rawItems));
       if (currentProfile.display_name && currentProfile.display_name !== 'Mi Usuario') {
         localStorage.setItem('mandado_profile', JSON.stringify(currentProfile));
@@ -309,7 +330,7 @@ export const AppProvider = ({ children }: { children: React.ReactNode }) => {
     } catch (e) {
       console.error('Error saving data', e);
     }
-  }, [stores, products, priceHistory, lists, rawItems, currentProfile, familyMembers]);
+  }, [stores, products, priceHistory, lists, currentListId, rawItems, currentProfile, familyMembers]);
 
   useEffect(() => {
     persistData();
@@ -644,6 +665,14 @@ export const AppProvider = ({ children }: { children: React.ReactNode }) => {
     }
   }, [currentProfile.id]);
 
+  const updateFamilySettings = useCallback(
+    (patch: { search_radius_km?: number | null }) => {
+      setFamily((prev) => ({ ...prev, ...patch }));
+      mutateServer('update_family', patch);
+    },
+    [mutateServer]
+  );
+
   const value = {
     family,
     currentProfile,
@@ -670,6 +699,7 @@ export const AppProvider = ({ children }: { children: React.ReactNode }) => {
     createList,
     getLatestPriceForStore,
     updateProfilePhone,
+    updateFamilySettings,
   };
 
   return <AppContext.Provider value={value}>{children}</AppContext.Provider>;

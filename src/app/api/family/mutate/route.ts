@@ -163,6 +163,49 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({ data, error });
       }
 
+      case 'update_family': {
+        // Resolve the caller's family server-side; never trust a client family_id.
+        const { data: me } = await admin
+          .from('profiles')
+          .select('family_id')
+          .eq('id', user.id)
+          .maybeSingle();
+
+        if (!me?.family_id) {
+          return NextResponse.json({ error: 'Familia no encontrada' }, { status: 404 });
+        }
+
+        const patch: Record<string, unknown> = {}; 
+        const allowed = ['search_radius_km'] as const;
+        allowed.forEach((key) => {
+          if (payload && key in payload) {
+            patch[key] = payload[key] ?? null;
+          }
+        });
+
+        if (Object.keys(patch).length === 0) {
+          return NextResponse.json({ error: 'Sin campos válidos para actualizar' }, { status: 400 });
+        }
+
+        // search_radius_km debe ser entero >= 0 o null
+        if ('search_radius_km' in patch && patch.search_radius_km !== null) {
+          const r = Number(patch.search_radius_km);
+          if (!Number.isInteger(r) || r < 0) {
+            return NextResponse.json({ error: 'Radio inválido' }, { status: 400 });
+          }
+          patch.search_radius_km = r;
+        }
+
+        const { data, error } = await admin
+          .from('families')
+          .update(patch)
+          .eq('id', me.family_id)
+          .select()
+          .single();
+
+        return NextResponse.json({ data, error });
+      }
+
       default:
         return NextResponse.json({ error: 'Acción desconocida' }, { status: 400 });
     }

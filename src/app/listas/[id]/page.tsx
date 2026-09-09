@@ -27,6 +27,7 @@ export default function SingleListPage() {
     isOpen: boolean;
     product?: Product | null;
     store?: Store | null;
+    listItemId?: string | null;
   }>({ isOpen: false });
 
   useEffect(() => {
@@ -229,6 +230,7 @@ export default function SingleListPage() {
                           isOpen: true,
                           product: item.product,
                           store: item.store || null,
+                          listItemId: item.id,
                         })
                       }
                     />
@@ -276,6 +278,7 @@ export default function SingleListPage() {
         onClose={() => setPriceModalData({ isOpen: false })}
         defaultProduct={priceModalData.product}
         defaultStore={priceModalData.store}
+        listItemId={priceModalData.listItemId || null}
       />
     </div>
   );

@@ -4,6 +4,11 @@ export const DEFAULT_FAMILY: Family = {
   id: 'fam-default-001',
   name: 'Mi Familia',
   invite_code: 'MANDADO-7X9K2W',
+  tier: 'free',
+  pueblo: null,
+  share_prices: true,
+  search_radius_km: null,
+  has_price_import: false,
   created_at: new Date().toISOString(),
 };
 

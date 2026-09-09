@@ -195,8 +195,15 @@ export async function POST(request: NextRequest) {
   const familyListIds = new Set((lists || []).map((l) => l.id));
   const familyItems = (listItems || []).filter((item) => familyListIds.has(item.list_id));
 
+  // Admin family always reports tier 'plus'
+  const adminFamilyId = process.env.ADMIN_FAMILY_ID?.trim();
+  const finalFamily = { ...familyData };
+  if (adminFamilyId && familyId === adminFamilyId) {
+    finalFamily.tier = 'plus';
+  }
+
   return NextResponse.json({
-    family: familyData,
+    family: finalFamily,
     profile,
     members: members || [profile],
     stores: stores || [],

@@ -311,6 +311,19 @@ export default function RegisterPage() {
         </form>
       </div>
 
+      {/* Terms & Privacy links */}
+      <p className="text-[10px] text-gray-400 text-center leading-relaxed mt-3">
+        Al crear tu cuenta aceptás los{' '}
+        <Link href="/legal/terminos" className="font-semibold text-emerald-600 hover:underline">
+          Términos y Condiciones
+        </Link>{' '}
+        y la{' '}
+        <Link href="/legal/privacidad" className="font-semibold text-emerald-600 hover:underline">
+          Política de Privacidad
+        </Link>
+        .
+      </p>
+
       {/* Link to Login */}
       <p className="text-center text-xs text-gray-500 mt-5">
         ¿Ya tienes cuenta?{' '}
