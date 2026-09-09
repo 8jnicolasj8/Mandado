@@ -127,9 +127,12 @@ export const AddProductModal: React.FC<AddProductModalProps> = ({
     );
     if (existing) return existing.id;
 
+    // Se crea con el id determinístico del catálogo para poder distinguir
+    // en Supabase los productos hardcodeados de los creados en la app.
     const created = addProduct({
       name: pick.name,
       initialStoreId: selectedStoreId || null,
+      id: pick.id,
     });
     return created.id;
   };

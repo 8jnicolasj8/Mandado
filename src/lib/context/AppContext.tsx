@@ -52,7 +52,7 @@ interface AppContextType {
   removeCheckedItems: () => void;
   changeItemStore: (itemId: string, newStoreId: string, isOverride: boolean) => void;
   addStore: (store: Omit<Store, 'id' | 'family_id' | 'created_at'>) => Store;
-  addProduct: (product: { name: string; initialStoreId?: string | null; initialPrice?: number | null }) => Product;
+  addProduct: (product: { name: string; initialStoreId?: string | null; initialPrice?: number | null; id?: string }) => Product;
   recordPrice: (productId: string, storeId: string, price: number) => void;
   createList: (name: string, isShared: boolean) => ShoppingList;
   getLatestPriceForStore: (productId: string, storeId: string) => { price: number; recordedAt: string } | null;
@@ -540,8 +540,10 @@ export const AppProvider = ({ children }: { children: React.ReactNode }) => {
   );
 
   const addProduct = useCallback(
-    (productData: { name: string; initialStoreId?: string | null; initialPrice?: number | null }): Product => {
-      const newProductId = typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : `prod-${Date.now()}`;
+    (productData: { name: string; initialStoreId?: string | null; initialPrice?: number | null; id?: string }): Product => {
+      const newProductId =
+        productData.id ||
+        (typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : `prod-${Date.now()}`);
       const newProduct: Product = {
         id: newProductId,
         family_id: family.id,

@@ -137,11 +137,19 @@ export default function ProductosPage() {
     setTimeout(() => setToastMessage(null), 2500);
   };
 
-  // Make sure a product exists in the DB (catalog rows are created lazily)
+  // Make sure a product exists in the DB (catalog rows are created lazily).
+  // Products derived from the catalog keep its deterministic id (catalog-N)
+  // so Supabase queries can tell them apart from app-created products.
   const ensureDbProduct = (name: string, initialStoreId?: string | null): string => {
-    const existing = dbByName.get(normalizeProductName(name));
+    const key = normalizeProductName(name);
+    const existing = dbByName.get(key);
     if (existing) return existing.id;
-    return addProduct({ name, initialStoreId: initialStoreId || null }).id;
+    const catalogId = PRODUCT_CATALOG.find((p) => normalizeProductName(p.name) === key)?.id;
+    return addProduct({
+      name,
+      initialStoreId: initialStoreId || null,
+      id: catalogId,
+    }).id;
   };
 
   const handleCreateProduct = (e: React.FormEvent) => {

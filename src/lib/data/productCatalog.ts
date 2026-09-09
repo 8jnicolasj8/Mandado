@@ -750,3 +750,14 @@ export const searchCatalog = (query: string): CatalogProduct[] => {
   if (!q) return [];
   return PRODUCT_CATALOG.filter((p) => normalizeProductName(p.name).includes(q)).slice(0, 50);
 };
+
+// Diferenciación de productos para consultas a Supabase:
+//  - Los productos del catálogo hardcodeado se crean en la tabla `products`
+//    con su id determinístico (`catalog-N`) solo cuando la familia los usa.
+//  - Los productos agregados manualmente dentro de la app tienen id UUID.
+// Comodidad en SQL: `products WHERE id NOT LIKE 'catalog-%'` → solo los
+// creados en la app. `id LIKE 'catalog-%'` → los derivados del catálogo.
+export const isCatalogProductId = (id: string): boolean => id.startsWith('catalog-');
+
+export const findCatalogProductById = (id: string): CatalogProduct | undefined =>
+  PRODUCT_CATALOG.find((p) => p.id === id);
