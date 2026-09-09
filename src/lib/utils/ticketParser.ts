@@ -44,6 +44,13 @@ Reglas para MODO A:
   GALLETIT → Galletitas, GELAT → Gelatina, CHOC → Chocolate,
   VAIN → Vainilla, CLASI → Clásico, DESC → Descremada,
   C/EXTR → Con Extra, GRANO → Granos
+- Cuando un producto es un alimento procesado con sabor 
+  (gelatina, yogur, galletitas, caramelos, chicles, jugos, 
+  mermeladas, helados), el nombre normalizado SIEMPRE debe 
+  incluir el tipo de producto + el sabor.
+  Correcto: "Gelatina Frambuesa", "Yogur Frutilla", "Chicle Uva"
+  Incorrecto: "Frambuesa", "Frutilla", "Uva"
+- El sabor nunca es el producto. El producto es lo que contiene el sabor.
 
 
 Para MODO B devolvé:
