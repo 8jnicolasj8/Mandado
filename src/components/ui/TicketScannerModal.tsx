@@ -13,6 +13,8 @@ import {
   AlertTriangle,
   ScanLine,
   Check,
+  Trash2,
+  RotateCcw,
 } from 'lucide-react';
 import { useApp } from '@/lib/context/AppContext';
 import { PRODUCT_CATALOG, normalizeProductName } from '@/lib/data/productCatalog';
@@ -49,6 +51,7 @@ export const TicketScannerModal: React.FC<TicketScannerModalProps> = ({
   const [errorMsg, setErrorMsg] = useState('');
   const [lastImage, setLastImage] = useState<{ image: string; mimeType: string } | null>(null);
   const [includedNews, setIncludedNews] = useState<Record<number, boolean>>({});
+  const [excluded, setExcluded] = useState<Record<number, boolean>>({});
 
   const cameraInputRef = useRef<HTMLInputElement>(null);
   const galleryInputRef = useRef<HTMLInputElement>(null);
@@ -80,6 +83,8 @@ export const TicketScannerModal: React.FC<TicketScannerModalProps> = ({
         setTicket(parsed);
 
         const plan = buildPlan(parsed, matcherCtx);
+        setExcluded({});
+        setIncludedNews({});
         if (parsed.modo === 'A') {
           setMatches(plan.matches);
           setModoBIds([]);
@@ -109,10 +114,14 @@ export const TicketScannerModal: React.FC<TicketScannerModalProps> = ({
     reader.readAsDataURL(file);
   };
 
-  const autoMatches = matches.filter((m) => m.kind === 'auto');
-  const confirmMatches = matches.filter((m) => m.kind === 'confirm');
-  const priceMatches = matches.filter((m) => m.kind === 'price');
-  const newMatches = matches.filter((m) => m.kind === 'new');
+  const autoMatches = matches.map((m, i) => ({ i, m })).filter(({ m }) => m.kind === 'auto');
+  const confirmMatches = matches.map((m, i) => ({ i, m })).filter(({ m }) => m.kind === 'confirm');
+  const priceMatches = matches.map((m, i) => ({ i, m })).filter(({ m }) => m.kind === 'price');
+  const newMatches = matches.map((m, i) => ({ i, m })).filter(({ m }) => m.kind === 'new');
+
+  const toggleExclude = (index: number) => {
+    setExcluded((prev) => ({ ...prev, [index]: !prev[index] }));
+  };
 
   const markConfirmSame = (index: number) => {
     setMatches((prev) => prev.map((m, i) => (i === index ? { ...m, kind: 'auto' } : m)));
@@ -157,6 +166,7 @@ export const TicketScannerModal: React.FC<TicketScannerModalProps> = ({
 
   const handleConfirm = () => {
     matches.forEach((m, i) => {
+      if (excluded[i]) return;
       if (m.kind === 'auto') applyListMatch(m);
       else if (m.kind === 'price') applyPriceMatch(m);
       else if (m.kind === 'new' && includedNews[i]) {
@@ -182,6 +192,7 @@ export const TicketScannerModal: React.FC<TicketScannerModalProps> = ({
     setErrorMsg('');
     setLastImage(null);
     setIncludedNews({});
+    setExcluded({});
     onClose();
   };
 
@@ -318,14 +329,37 @@ export const TicketScannerModal: React.FC<TicketScannerModalProps> = ({
                     <div>
                       <SectionTitle icon={<CheckCircle2 className="w-4 h-4 text-emerald-600" />} color="text-emerald-700" title="Se van a tachar" />
                       <div className="space-y-1.5 mt-2">
-                        {autoMatches.map((m, i) => (
-                          <div key={`auto-${i}`} className="flex items-center justify-between bg-emerald-50/70 rounded-xl px-3 py-2 text-xs">
-                            <span className="font-semibold text-gray-800">{m.candidateName} <span className="text-gray-500">x{m.article.cantidad}</span></span>
-                            {m.article.precio_unitario > 0 && (
-                              <span className="font-mono font-bold text-emerald-800">{formatCurrency(m.article.precio_unitario)}</span>
-                            )}
-                          </div>
-                        ))}
+                        {autoMatches.map(({ i, m }) => {
+                          const isExcluded = Boolean(excluded[i]);
+                          return (
+                            <div
+                              key={`auto-${i}`}
+                              className={`flex items-center justify-between gap-2 rounded-xl px-3 py-2 text-xs transition-colors ${
+                                isExcluded ? 'bg-gray-50 opacity-60' : 'bg-emerald-50/70'
+                              }`}
+                            >
+                              <span className={`font-semibold text-gray-800 ${isExcluded ? 'line-through' : ''}`}>
+                                {m.candidateName} <span className="text-gray-500">x{m.article.cantidad}</span>
+                              </span>
+                              <div className="flex items-center gap-2 shrink-0">
+                                {m.article.precio_unitario > 0 && (
+                                  <span className="font-mono font-bold text-emerald-800">{formatCurrency(m.article.precio_unitario)}</span>
+                                )}
+                                <button
+                                  onClick={() => toggleExclude(i)}
+                                  className="p-1.5 rounded-lg hover:bg-white text-gray-400 hover:text-red-600 transition-colors"
+                                  title={isExcluded ? 'Volver a incluir' : 'No agregar este producto'}
+                                >
+                                  {isExcluded ? (
+                                    <RotateCcw className="w-3.5 h-3.5" />
+                                  ) : (
+                                    <Trash2 className="w-3.5 h-3.5" />
+                                  )}
+                                </button>
+                              </div>
+                            </div>
+                          );
+                        })}
                       </div>
                     </div>
                   )}
@@ -334,7 +368,7 @@ export const TicketScannerModal: React.FC<TicketScannerModalProps> = ({
                     <div>
                       <SectionTitle icon={<HelpCircle className="w-4 h-4 text-amber-500" />} color="text-amber-700" title="Confirmar match" />
                       <div className="space-y-2 mt-2">
-                        {confirmMatches.map((m, i) => (
+                        {confirmMatches.map(({ i, m }) => (
                           <div key={`confirm-${i}`} className="bg-amber-50/70 rounded-2xl px-3 py-3 text-xs space-y-2 border border-amber-100">
                             <p>
                               <span className="text-gray-500">En el ticket:</span>{' '}
@@ -370,7 +404,7 @@ export const TicketScannerModal: React.FC<TicketScannerModalProps> = ({
                     <div>
                       <SectionTitle icon={<Coins className="w-4 h-4 text-sky-600" />} color="text-sky-700" title="Precios a actualizar" />
                       <div className="space-y-1.5 mt-2">
-                        {priceMatches.map((m, i) => (
+                        {priceMatches.map(({ i, m }) => (
                           <div key={`price-${i}`} className="flex items-center justify-between bg-sky-50/70 rounded-xl px-3 py-2 text-xs">
                             <span className="font-semibold text-gray-800">{m.candidateName}</span>
                             <span className="font-mono font-bold text-sky-800">
@@ -386,7 +420,7 @@ export const TicketScannerModal: React.FC<TicketScannerModalProps> = ({
                     <div>
                       <SectionTitle icon={<Sparkles className="w-4 h-4 text-violet-600" />} color="text-violet-700" title="Productos nuevos" />
                       <div className="space-y-2 mt-2">
-                        {newMatches.map((m, i) => (
+                        {newMatches.map(({ i, m }) => (
                           <NewProductRow
                             key={`new-${i}`}
                             match={m}
