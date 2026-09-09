@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createServerClient } from '@supabase/ssr';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { generateFamilyInviteCode } from '@/lib/utils/family';
+import { seedInitialProducts } from '@/lib/seed/productos-iniciales';
 
 const DEFAULT_STORES_DATA = [
   { name: 'Supermercado Dia', category: 'supermercado', address: 'Adolfo Alsina 534, General Pinto', lat: -34.7648413, lng: -61.8927143 },
@@ -120,6 +121,9 @@ export async function POST(request: NextRequest) {
     familyId = profile.family_id;
     familyData = profile.families;
   }
+
+  // 1b. Seed de productos iniciales (idempotente: solo inserta los que faltan)
+  await seedInitialProducts(familyId);
 
   // 2. Ensure default stores exist for this family (insert only the missing ones)
   const { data: existingStores } = await admin.from('stores').select('*').eq('family_id', familyId);
