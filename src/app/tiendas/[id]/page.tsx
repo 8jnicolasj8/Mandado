@@ -14,10 +14,12 @@ import {
   Calendar,
   DollarSign,
   TrendingDown,
+  ReceiptText,
 } from 'lucide-react';
 import { useApp } from '@/lib/context/AppContext';
 import { PriceBadge } from '@/components/ui/PriceBadge';
 import { RecordPriceModal } from '@/components/ui/RecordPriceModal';
+import { TicketScannerModal } from '@/components/ui/TicketScannerModal';
 import { StoreMap } from '@/components/maps/StoreMap';
 import { getCategoryEmoji, CATEGORY_LABELS, formatPrice } from '@/lib/utils/whatsapp';
 import { getPriceStatus } from '@/lib/utils/prices';
@@ -32,6 +34,7 @@ export default function StoreDetailPage() {
   const [isRecordModalOpen, setIsRecordModalOpen] = useState(false);
   const [selectedProductId, setSelectedProductId] = useState<string | null>(null);
   const [justAddedMsg, setJustAddedMsg] = useState<string | null>(null);
+  const [isScannerOpen, setIsScannerOpen] = useState(false);
 
   const store = useMemo(() => stores.find((s) => s.id === storeId), [stores, storeId]);
 
@@ -129,13 +132,22 @@ export default function StoreDetailPage() {
           Tiendas
         </Link>
 
-        <button
-          onClick={() => handleOpenRecordPrice()}
-          className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold rounded-xl shadow-xs active:scale-95 transition-all"
-        >
-          <Plus className="w-4 h-4" />
-          Registrar precio
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => setIsScannerOpen(true)}
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-white hover:bg-gray-50 text-gray-800 border border-gray-200 text-xs font-semibold rounded-xl shadow-xs active:scale-95 transition-all"
+          >
+            <ReceiptText className="w-4 h-4 text-emerald-600" />
+            Escanear Ticket
+          </button>
+          <button
+            onClick={() => handleOpenRecordPrice()}
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold rounded-xl shadow-xs active:scale-95 transition-all"
+          >
+            <Plus className="w-4 h-4" />
+            Registrar precio
+          </button>
+        </div>
       </div>
 
       {/* Success alert toast */}
@@ -291,6 +303,14 @@ export default function StoreDetailPage() {
         onClose={() => setIsRecordModalOpen(false)}
         defaultStoreId={store.id}
         defaultProductId={selectedProductId || undefined}
+      />
+
+      {/* Scan ticket modal */}
+      <TicketScannerModal
+        isOpen={isScannerOpen}
+        onClose={() => setIsScannerOpen(false)}
+        storeId={store.id}
+        storeName={store.name}
       />
     </div>
   );
