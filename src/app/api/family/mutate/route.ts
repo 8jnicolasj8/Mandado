@@ -27,21 +27,55 @@ export async function POST(request: NextRequest) {
   try {
     switch (action) {
       case 'add_item': {
+        const insertData = {
+          id: payload.id,
+          list_id: payload.list_id,
+          product_id: payload.product_id,
+          store_id: payload.store_id || null,
+          is_store_override: payload.is_store_override || false,
+          quantity: payload.quantity || 1,
+          unit: payload.unit || 'unidad',
+          checked: false,
+          added_by: user.id,
+        };
         const { data, error } = await admin
           .from('list_items')
-          .insert({
-            id: payload.id,
-            list_id: payload.list_id,
-            product_id: payload.product_id,
-            store_id: payload.store_id || null,
-            is_store_override: payload.is_store_override || false,
-            quantity: payload.quantity || 1,
-            unit: payload.unit || 'unidad',
-            checked: false,
-            added_by: user.id,
-          })
+          .insert(insertData)
           .select()
           .single();
+
+        // Carrera con add_product: el ítem puede llegar primero y fallar por FK.
+        // Creamos el producto (name viene en el payload) y reintentamos.
+        if (error && error.code === '23503' && payload.product_name) {
+          const { data: listRow } = await admin
+            .from('lists')
+            .select('family_id')
+            .eq('id', payload.list_id)
+            .maybeSingle();
+          if (listRow) {
+            const upsert = await admin
+              .from('products')
+              .upsert(
+                {
+                  id: payload.product_id,
+                  family_id: listRow.family_id,
+                  name: payload.product_name,
+                  canonical_store_id: payload.store_id || null,
+                },
+                { onConflict: 'id' }
+              )
+              .select()
+              .single();
+            if (!upsert.error) {
+              const retry = await admin
+                .from('list_items')
+                .insert(insertData)
+                .select()
+                .single();
+              return NextResponse.json({ data: retry.data, error: retry.error, retried: !retry.error });
+            }
+          }
+        }
 
         return NextResponse.json({ data, error });
       }

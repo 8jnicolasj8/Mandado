@@ -65,7 +65,16 @@ export async function seedInitialProducts(familyId: string): Promise<number> {
   const rows = computeSeedRows(existingNames, familyId);
   if (rows.length === 0) return 0;
 
-  const { error } = await admin.from('products').insert(rows);
+  // El id lo genera la base (uuid por default). Los ids seed-... no caben en
+  // la columna uuid de Supabase.
+  const { error } = await admin
+    .from('products')
+    .insert(rows.map(({ name, family_id, canonical_store_id, created_at }) => ({
+      name,
+      family_id,
+      canonical_store_id,
+      created_at,
+    })));
   if (error) {
     console.error('seedInitialProducts error:', error.message);
     return 0;

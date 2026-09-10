@@ -437,11 +437,15 @@ export const AppProvider = ({ children }: { children: React.ReactNode }) => {
   // Helper to send mutations to server
   const mutateServer = useCallback(async (action: string, payload: any) => {
     try {
-      await fetch('/api/family/mutate', {
+      const res = await fetch('/api/family/mutate', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ action, payload }),
       });
+      if (!res.ok) {
+        const body = await res.json().catch(() => null);
+        console.error(`mutateServer (${action}) falló:`, body);
+      }
     } catch (err) {
       console.error(`Error in mutateServer (${action}):`, err);
     }
@@ -500,6 +504,7 @@ export const AppProvider = ({ children }: { children: React.ReactNode }) => {
         checked: false,
         added_by: currentProfile.id,
         created_at: new Date().toISOString(),
+        product_name: product?.name || null,
       };
 
       setRawItems((prev) => [newItem, ...prev]);
@@ -562,9 +567,17 @@ export const AppProvider = ({ children }: { children: React.ReactNode }) => {
 
   const addProduct = useCallback(
     (productData: { name: string; initialStoreId?: string | null; initialPrice?: number | null; id?: string }): Product => {
+      // Los ids determinísticos del formato catalog-N / seed-... no caben en la
+      // columna uuid de Supabase. Si vienen con un id no-UUID, generamos uno
+      // real (la deduplicación por nombre ya evita duplicados).
+      const isValidUuid = (id: string) =>
+        /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id);
       const newProductId =
-        productData.id ||
-        (typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : `prod-${Date.now()}`);
+        productData.id && isValidUuid(productData.id)
+          ? productData.id
+          : typeof crypto !== 'undefined' && crypto.randomUUID
+            ? crypto.randomUUID()
+            : `prod-${Date.now()}`;
       const newProduct: Product = {
         id: newProductId,
         family_id: family.id,
