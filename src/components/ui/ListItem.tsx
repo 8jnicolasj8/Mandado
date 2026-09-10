@@ -72,7 +72,7 @@ export const ListItem: React.FC<ListItemProps> = ({ item, onRecordPriceClick }) 
         <div className="flex-1 min-w-0">
           <div className="flex items-baseline gap-2">
             <h4
-              className={`text-sm font-semibold truncate ${
+              className={`text-sm font-semibold break-words leading-snug ${
                 isChecked ? 'line-through text-gray-500' : 'text-gray-900'
               }`}
             >

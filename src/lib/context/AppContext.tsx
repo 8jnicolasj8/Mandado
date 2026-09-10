@@ -1,6 +1,6 @@
 'use client';
 
-import React, { createContext, useContext, useState, useEffect, useCallback, useMemo } from 'react';
+import React, { createContext, useContext, useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import {
   Family,
   Profile,
@@ -100,6 +100,12 @@ export const AppProvider = ({ children }: { children: React.ReactNode }) => {
     return DEFAULT_LISTS[0].id;
   });
   const [rawItems, setRawItems] = useState(DEFAULT_LIST_ITEMS);
+
+  // Ids de ítems agregados en esta sesión que todavía no fueron confirmados por
+  // el server (realtime o sync). Permiten distinguir "recién agregado" (se
+  // conserva localmente si una sync llega antes que el insert) de "borrado en
+  // otro dispositivo" (must drop, no debe resucitar).
+  const pendingItemIds = useRef<Set<string>>(new Set());
 
   // Load from localStorage or Supabase on mount
   useEffect(() => {
@@ -208,14 +214,17 @@ export const AppProvider = ({ children }: { children: React.ReactNode }) => {
                 );
               }
               if (data.list_items) {
-                // Merge instead of replacing: keep recent optimistic additions
-                // that haven't been ingested by the server fetch yet, so a
-                // sync arriving right after an add doesn't make items vanish.
+                // Merge: conserva solo los ítems agregados en esta sesión que aún
+                // no confirmó el server; el resto queda a una sola fuente (el
+                // server), así los borrados en otros dispositivos no resucitan.
                 setRawItems((prev) => {
-                  const merged = new Map<string, any>();
-                  for (const it of data.list_items) merged.set(it.id, it);
-                  for (const it of prev) if (!merged.has(it.id)) merged.set(it.id, it);
-                  return Array.from(merged.values());
+                  const serverMap = new Map<string, any>();
+                  for (const it of data.list_items) serverMap.set(it.id, it);
+                  for (const id of serverMap.keys()) pendingItemIds.current.delete(id);
+                  const pendingItems = prev.filter(
+                    (it) => pendingItemIds.current.has(it.id) && !serverMap.has(it.id)
+                  );
+                  return [...pendingItems, ...Array.from(serverMap.values())];
                 });
               }
               if (data.price_history) {
@@ -251,6 +260,7 @@ export const AppProvider = ({ children }: { children: React.ReactNode }) => {
         .on('postgres_changes', { event: '*', schema: 'public', table: 'list_items' }, (payload) => {
           if (payload.eventType === 'INSERT') {
             const newItem = payload.new as any;
+            pendingItemIds.current.delete(newItem.id);
             setRawItems((prev) => (prev.some((i) => i.id === newItem.id) ? prev : [newItem, ...prev]));
           } else if (payload.eventType === 'UPDATE') {
             const updated = payload.new as any;
@@ -508,6 +518,7 @@ export const AppProvider = ({ children }: { children: React.ReactNode }) => {
       };
 
       setRawItems((prev) => [newItem, ...prev]);
+      pendingItemIds.current.add(newId);
       mutateServer('add_item', newItem);
     },
     [currentListId, products, currentProfile.id, mutateServer]
